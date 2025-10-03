@@ -30,10 +30,6 @@ use fontique::{self, Query, QueryFamily, QueryFont};
 use swash::text::cluster::{CharCluster, CharInfo, Token};
 use swash::text::{Language, Script};
 
-
-// This function is replaced by extract_ranged_font_styles in resolve/mod.rs
-// TODO: Remove this function once all callers are updated
-
 /// Convert multiple character ranges to byte ranges efficiently in O(n) time
 /// where n is the length of the text, regardless of the number of ranges.
 pub(crate) fn char_ranges_to_byte_ranges(text: &str, char_ranges: &[core::ops::Range<usize>]) -> Vec<core::ops::Range<usize>> {
@@ -233,8 +229,6 @@ pub(crate) fn shape_text<'a, B: Brush>(
         return;
     }
 
-    // Font styles will be extracted within shape_item to avoid lifetime issues
-
     // Setup mutable state for iteration
     let mut style = &styles[0];
     let mut item = Item {
@@ -381,8 +375,6 @@ fn shape_item<'a, B: Brush>(
 ) {
     let item_text = &text[text_range.clone()];
     let item_infos = &infos[char_range.start..char_range.end]; // Only process current item
-
-    // Font styles are now directly accessible in RangedStyle
 
     // Parse text into clusters of the current item
     let tokens =
@@ -883,8 +875,6 @@ impl<'a, 'b> FontSelector<'a, 'b> {
         });
         selected_font
     }
-
-    // Removed try_primary_fonts_only - now handled by select_font with FallbackMode parameter
 }
 
 #[derive(Debug, Clone)]
