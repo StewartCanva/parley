@@ -1,4 +1,4 @@
-// Copyright 2024 the Parley Authors
+// Copyright 2025 the Parley Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! Font selection strategies for customizing font fallback behavior.
@@ -31,7 +31,7 @@ pub struct FallbackSegment {
 impl FallbackSegment {
 
     /// Create a new fallback segment with explicit synthesis.
-    pub fn new_with_synthesis(char_range: Range<usize>, font: Font, synthesis: fontique::Synthesis) -> Self {
+    pub fn new(char_range: Range<usize>, font: Font, synthesis: fontique::Synthesis) -> Self {
         Self { char_range, font, synthesis }
     }
 }
@@ -210,7 +210,7 @@ impl FontSelectionStrategy for CanvaFontSelectionStrategy {
             for entry in &self.ranges {
                 if entry.range.contains(&char_code) {
                     let absolute_char_position = char_range.start + local_index;
-                    segments.push(FallbackSegment::new_with_synthesis(
+                    segments.push(FallbackSegment::new(
                         absolute_char_position..(absolute_char_position + 1),
                         entry.font.clone(),
                         entry.synthesis.clone()

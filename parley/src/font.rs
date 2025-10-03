@@ -45,10 +45,6 @@ impl FontContext {
         Default::default()
     }
 
-    /// Set a custom font selection strategy.
-    ///
-    /// The strategy will be properly cloned if you clone the FontContext, so both
-    /// instances will maintain the same font selection behavior.
     pub fn set_font_selection_strategy(
         &mut self,
         strategy: impl crate::font_selection::FontSelectionStrategy + Send + Sync + 'static,
