@@ -3,6 +3,7 @@
 
 mod test_basic;
 mod test_builders;
+mod test_canva_font_selection;
 mod test_cursor;
 mod test_editor;
 mod test_lines;

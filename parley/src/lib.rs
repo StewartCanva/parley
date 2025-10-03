@@ -106,6 +106,7 @@ mod bidi;
 mod builder;
 mod context;
 mod font;
+mod font_selection;
 mod inline_box;
 mod lru_cache;
 mod resolve;
@@ -125,6 +126,11 @@ pub use peniko::kurbo::Rect;
 pub use builder::{RangedBuilder, TreeBuilder};
 pub use context::LayoutContext;
 pub use font::FontContext;
+pub use font_selection::{
+    FontSelectionStrategy, FontSelectionResult, FallbackSegment,
+    DefaultFontSelectionStrategy, CanvaFontSelectionStrategy,
+};
+pub use shape::{FallbackMode, SelectedFont};
 pub use inline_box::InlineBox;
 #[doc(inline)]
 pub use layout::Layout;

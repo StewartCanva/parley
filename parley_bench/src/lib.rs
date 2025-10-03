@@ -51,10 +51,9 @@ pub(crate) fn create_font_context() -> FontContext {
                 .unwrap_or_else(|| panic!("{font_name} font not found"));
         }
     }
-    FontContext {
-        collection,
-        source_cache: Default::default(),
-    }
+    let mut font_ctx = FontContext::default();
+    font_ctx.collection = collection;
+    font_ctx
 }
 
 pub(crate) const FONT_STACK: &[FontFamily<'_>] = &[

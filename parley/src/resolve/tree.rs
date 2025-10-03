@@ -141,7 +141,11 @@ impl<B: Brush> TreeStyleBuilder<B> {
 
         let range = self.text.len()..(self.text.len() + span_text.len());
         let style = self.current_style();
-        self.flatted_styles.push(RangedStyle { style, range });
+        self.flatted_styles.push(RangedStyle {
+            font_style: std::sync::Arc::new(super::FontStyleData::from_resolved_style(&style)),
+            render_style: super::RenderStyleData::from_resolved_style(&style),
+            range,
+        });
         self.text.push_str(span_text);
         self.uncommitted_text.clear();
         self.is_span_first = false;
