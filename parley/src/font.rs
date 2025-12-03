@@ -42,7 +42,7 @@ impl Clone for FontContext {
 impl FontContext {
     /// Create a new `FontContext`, discovering system fonts if available.
     pub fn new() -> Self {
-        Default::default()
+        Self::default()
     }
 
     pub fn set_font_selection_strategy(

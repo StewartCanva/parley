@@ -13,7 +13,7 @@ use std::{
 
 use parley::{
     FontContext, FontFamily, LayoutContext,
-    fontique::{Blob, Collection, CollectionOptions},
+    fontique::{Blob, Collection, CollectionOptions, SourceCache},
 };
 
 pub mod benches;

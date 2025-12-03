@@ -15,7 +15,7 @@ use super::style::{Brush, FontFeature, FontVariation};
 use crate::inline_box::InlineBox;
 use crate::lru_cache::LruCache;
 use crate::util::nearly_eq;
-use crate::{Font, swash_convert};
+use crate::{FontData, swash_convert};
 
 /// Controls whether system fallback fonts are used when primary fonts fail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -321,6 +321,8 @@ pub(crate) fn shape_text<'a, B: Brush>(
             item.locale = style.font_style.locale;
             item.variations = style.font_style.font_variations;
             item.features = style.font_style.font_features;
+            item.word_spacing = style.font_style.word_spacing;
+            item.letter_spacing = style.font_style.letter_spacing;
             text_range.start = text_range.end;
             char_range.start = char_range.end;
         }
@@ -361,9 +363,9 @@ pub(crate) fn shape_text<'a, B: Brush>(
 }
 
 fn shape_item<'a, B: Brush>(
-    fq: &mut fontique::Query<'a>,
-    rcx: &'a crate::resolve::ResolveContext,
-    styles: &'a [crate::resolve::RangedStyle<B>],
+    fq: &mut Query<'a>,
+    rcx: &'a ResolveContext,
+    styles: &'a [RangedStyle<B>],
     item: &Item,
     scx: &mut ShapeContext,
     text: &str,
@@ -466,7 +468,7 @@ fn shape_item<'a, B: Brush>(
                 }
 
                 // Convert SelectedFont -> Font for shaping
-                let current_font = Font::new(
+                let current_font = FontData::new(
                     current_selected_font.font.blob.clone(),
                     current_selected_font.font.index,
                 );
@@ -552,15 +554,15 @@ fn shape_item<'a, B: Brush>(
 /// This contains the core harfrust shaping logic, operating on segments rather than individual clusters
 /// to preserve the performance characteristics of the original implementation.
 fn shape_segment_with_harfrust<B: Brush>(
-    rcx: &crate::resolve::ResolveContext,
+    rcx: &ResolveContext,
     item: &Item,
     scx: &mut ShapeContext,
     text: &str,
     text_range: &core::ops::Range<usize>,
     char_range: &core::ops::Range<usize>,
     segment_offset_range: core::ops::Range<usize>, // Byte offsets within the text item
-    infos: &[(swash::text::cluster::CharInfo, u16)],
-    font: &Font,
+    infos: &[(CharInfo, u16)],
+    font: &FontData,
     synthesis: &fontique::Synthesis,
     layout: &mut Layout<B>,
 ) {
@@ -696,6 +698,7 @@ fn shape_segment_with_harfrust<B: Brush>(
         synthesis.clone(),
         &glyph_buffer,
         item.level,
+        item.style_index,
         item.word_spacing,
         item.letter_spacing,
         segment_text,
@@ -707,7 +710,6 @@ fn shape_segment_with_harfrust<B: Brush>(
     // Return buffer for reuse
     scx.unicode_buffer = Some(glyph_buffer.clear());
 }
-
 
 fn real_script(script: Script) -> bool {
     script != Script::Common && script != Script::Unknown && script != Script::Inherited
@@ -747,10 +749,10 @@ pub(crate) struct FontSelector<'a, 'b> {
 }
 
 impl<'a, 'b> FontSelector<'a, 'b> {
-    pub(crate) fn new<B: crate::style::Brush>(
+    pub(crate) fn new<B: Brush>(
         query: &'b mut Query<'a>,
         rcx: &'a ResolveContext,
-        styles: &[crate::resolve::RangedStyle<B>],
+        styles: &[RangedStyle<B>],
         style_index: u16,
         script: Script,
         locale: Option<Language>,
@@ -770,8 +772,8 @@ impl<'a, 'b> FontSelector<'a, 'b> {
 
         // Set up fallbacks based on mode (fixes performance regression)
         if let FallbackMode::WithSystemFallback = fallback_mode {
-            let fb_script = crate::swash_convert::script_to_fontique(script);
-            let fb_language = locale.and_then(crate::swash_convert::locale_to_fontique);
+            let fb_script = swash_convert::script_to_fontique(script);
+            let fb_language = locale.and_then(swash_convert::locale_to_fontique);
             query.set_fallbacks(fontique::FallbackKey::new(fb_script, fb_language.as_ref()));
         }
         // For PrimaryFontsOnly: don't set fallbacks at all - they're optional

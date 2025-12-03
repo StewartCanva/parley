@@ -3,8 +3,8 @@
 
 //! Font selection strategies for customizing font fallback behavior.
 
-use crate::Font;
 use std::ops::Range;
+use linebender_resource_handle::FontData;
 
 /// Represents the result of font selection for a text cluster.
 #[derive(Debug, Clone)]
@@ -23,7 +23,7 @@ pub struct FallbackSegment {
     /// Character range within the text (not byte range)
     pub char_range: Range<usize>,
     /// Font to use for this character range
-    pub font: Font,
+    pub font: FontData,
     /// Font synthesis settings (bold/italic emulation)
     pub synthesis: fontique::Synthesis,
 }
@@ -31,7 +31,7 @@ pub struct FallbackSegment {
 impl FallbackSegment {
 
     /// Create a new fallback segment with explicit synthesis.
-    pub fn new(char_range: Range<usize>, font: Font, synthesis: fontique::Synthesis) -> Self {
+    pub fn new(char_range: Range<usize>, font: FontData, synthesis: fontique::Synthesis) -> Self {
         Self { char_range, font, synthesis }
     }
 }
@@ -137,7 +137,7 @@ pub struct CanvaFontSelectionStrategy {
 #[derive(Debug, Clone)]
 struct UnicodeRangeEntry {
     range: Range<u32>,
-    font: Font,
+    font: FontData,
     synthesis: fontique::Synthesis,
 }
 
@@ -153,7 +153,7 @@ impl CanvaFontSelectionStrategy {
     ///
     /// When primary fonts fail, characters in this range will use the specified font
     /// with the specified synthesis (bold/italic emulation).
-    pub fn add_unicode_range_with_synthesis(&mut self, range: Range<u32>, font: Font, synthesis: fontique::Synthesis) {
+    pub fn add_unicode_range_with_synthesis(&mut self, range: Range<u32>, font: FontData, synthesis: fontique::Synthesis) {
         self.ranges.push(UnicodeRangeEntry { range, font, synthesis });
     }
 
