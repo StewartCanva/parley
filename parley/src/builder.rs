@@ -54,14 +54,17 @@ impl<B: Brush> RangedBuilder<'_, B> {
         self.lcx.ranged_style_builder.finish(&mut self.lcx.styles);
 
         // Call generic layout builder method
-        build_into_layout(
-            layout,
-            self.scale,
-            self.quantize,
-            text.as_ref(),
-            self.lcx,
-            self.fcx,
-        );
+        self.fcx.with_query_and_strategy(|query, strategy| {
+            build_into_layout_with_query(
+                layout,
+                self.scale,
+                self.quantize,
+                text.as_ref(),
+                self.lcx,
+                query,
+                strategy,
+            )
+        });
     }
 
     pub fn build(self, text: impl AsRef<str>) -> Layout<B> {
@@ -133,8 +136,10 @@ impl<B: Brush> TreeBuilder<'_, B> {
         // Apply TreeStyleBuilder styles to LayoutContext
         let text = self.lcx.tree_style_builder.finish(&mut self.lcx.styles);
 
-        // Call generic layout builder method
-        build_into_layout(layout, self.scale, self.quantize, &text, self.lcx, self.fcx);
+        // Call generic layout builder method using FontContext's strategy
+        self.fcx.with_query_and_strategy(|query, strategy| {
+            build_into_layout_with_query(layout, self.scale, self.quantize, &text, self.lcx, query, strategy)
+        });
 
         text
     }
@@ -147,13 +152,14 @@ impl<B: Brush> TreeBuilder<'_, B> {
     }
 }
 
-fn build_into_layout<B: Brush>(
+fn build_into_layout_with_query<B: Brush>(
     layout: &mut Layout<B>,
     scale: f32,
     quantize: bool,
     text: &str,
     lcx: &mut LayoutContext<B>,
-    fcx: &mut FontContext,
+    query: fontique::Query<'_>,
+    font_selection_strategy: &dyn crate::font_selection::FontSelectionStrategy,
 ) {
     lcx.analyze_text(text);
 
@@ -176,26 +182,24 @@ fn build_into_layout<B: Brush>(
     layout
         .data
         .styles
-        .extend(lcx.styles.iter().map(|s| s.style.as_layout_style()));
+        .extend(lcx.styles.iter().map(|s| s.as_layout_style()));
 
     // Sort the inline boxes as subsequent code assumes that they are in text index order.
     // Note: It's important that this is a stable sort to allow users to control the order of contiguous inline boxes
     lcx.inline_boxes.sort_by_key(|b| b.index);
 
-    {
-        let query = fcx.collection.query(&mut fcx.source_cache);
-        super::shape::shape_text(
-            &lcx.rcx,
-            query,
-            &lcx.styles,
-            &lcx.inline_boxes,
-            &lcx.info,
-            lcx.bidi.levels(),
-            &mut lcx.scx,
-            text,
-            layout,
-        );
-    }
+    super::shape::shape_text(
+        &lcx.rcx,
+        query,
+        &lcx.styles,
+        &lcx.inline_boxes,
+        &lcx.info,
+        lcx.bidi.levels(),
+        &mut lcx.scx,
+        text,
+        layout,
+        font_selection_strategy,
+    );
 
     // Move inline boxes into the layout
     layout.data.inline_boxes.clear();

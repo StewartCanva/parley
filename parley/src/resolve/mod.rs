@@ -22,13 +22,172 @@ use core::borrow::Borrow;
 use core::ops::Range;
 use fontique::FamilyId;
 use swash::text::Language;
+use std::sync::Arc;
 
 /// Style with an associated range.
 #[derive(Debug, Clone)]
 pub(crate) struct RangedStyle<B: Brush> {
-    pub(crate) style: ResolvedStyle<B>,
+    pub(crate) font_style: Arc<FontStyleData>,
+    pub(crate) render_style: RenderStyleData<B>,
     pub(crate) range: Range<usize>,
 }
+
+impl<B: Brush> RangedStyle<B> {
+    /// Check if a property would change this style.
+    pub(crate) fn check(&self, property: &ResolvedProperty<B>) -> bool {
+        // Create a temporary ResolvedStyle for checking
+        let temp_style = self.as_resolved_style();
+        temp_style.check(property)
+    }
+
+    /// Apply a property to this style, creating new Arc if font properties change.
+    pub(crate) fn apply(&mut self, property: ResolvedProperty<B>) {
+        // Check if this affects font properties
+        if self.affects_font_style(&property) {
+            // Create a new FontStyleData with the property applied
+            let mut temp_style = self.as_resolved_style();
+            temp_style.apply(property);
+            self.font_style = Arc::new(FontStyleData::from_resolved_style(&temp_style));
+            self.render_style = RenderStyleData::from_resolved_style(&temp_style);
+        } else {
+            // Only affects render properties - apply directly
+            let mut temp_style = self.as_resolved_style();
+            temp_style.apply(property);
+            self.render_style = RenderStyleData::from_resolved_style(&temp_style);
+        }
+    }
+
+    /// Create a temporary ResolvedStyle for operations that need the full style.
+    fn as_resolved_style(&self) -> ResolvedStyle<B> {
+        ResolvedStyle {
+            font_stack: self.font_style.font_stack,
+            font_size: self.font_style.font_size,
+            font_width: self.font_style.font_width,
+            font_style: self.font_style.font_style,
+            font_weight: self.font_style.font_weight,
+            font_variations: self.font_style.font_variations,
+            font_features: self.font_style.font_features,
+            locale: self.font_style.locale,
+            word_spacing: self.font_style.word_spacing,
+            letter_spacing: self.font_style.letter_spacing,
+            brush: self.render_style.brush.clone(),
+            underline: self.render_style.underline.clone(),
+            strikethrough: self.render_style.strikethrough.clone(),
+            line_height: self.render_style.line_height,
+            word_break: self.render_style.word_break,
+            overflow_wrap: self.render_style.overflow_wrap,
+            text_wrap_mode: self.render_style.text_wrap_mode,
+        }
+    }
+
+    /// Check if a property affects font style (vs only render style).
+    fn affects_font_style(&self, property: &ResolvedProperty<B>) -> bool {
+        matches!(property,
+            ResolvedProperty::FontStack(_) |
+            ResolvedProperty::FontSize(_) |
+            ResolvedProperty::FontWidth(_) |
+            ResolvedProperty::FontStyle(_) |
+            ResolvedProperty::FontWeight(_) |
+            ResolvedProperty::FontVariations(_) |
+            ResolvedProperty::FontFeatures(_) |
+            ResolvedProperty::Locale(_) |
+            ResolvedProperty::WordSpacing(_) |
+            ResolvedProperty::LetterSpacing(_)
+        )
+    }
+
+    /// Convert to a layout::Style for rendering.
+    pub(crate) fn as_layout_style(&self) -> layout::Style<B> {
+        layout::Style {
+            brush: self.render_style.brush.clone(),
+            underline: self.render_style.underline.as_layout_decoration(&self.render_style.brush),
+            strikethrough: self.render_style.strikethrough.as_layout_decoration(&self.render_style.brush),
+            line_height: self.render_style.line_height,
+            overflow_wrap: self.render_style.overflow_wrap,
+            text_wrap_mode: self.render_style.text_wrap_mode,
+        }
+    }
+}
+
+/// Font-only style data (no brush/rendering properties).
+/// Used for font selection which doesn't need rendering information.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct FontStyleData {
+    /// Font stack.
+    pub(crate) font_stack: Resolved<FamilyId>,
+    /// Font size.
+    pub(crate) font_size: f32,
+    /// Font width.
+    pub(crate) font_width: FontWidth,
+    /// Font style.
+    pub(crate) font_style: FontStyle,
+    /// Font weight.
+    pub(crate) font_weight: FontWeight,
+    /// Font variation settings.
+    pub(crate) font_variations: Resolved<FontVariation>,
+    /// Font feature settings.
+    pub(crate) font_features: Resolved<FontFeature>,
+    /// Locale.
+    pub(crate) locale: Option<Language>,
+    /// Extra spacing between words.
+    pub(crate) word_spacing: f32,
+    /// Extra spacing between letters.
+    pub(crate) letter_spacing: f32,
+}
+
+impl FontStyleData {
+    /// Extract font-only data from a ResolvedStyle (dropping brush/rendering properties).
+    pub(crate) fn from_resolved_style<B: Brush>(style: &ResolvedStyle<B>) -> Self {
+        Self {
+            font_stack: style.font_stack,
+            font_size: style.font_size,
+            font_width: style.font_width,
+            font_style: style.font_style,
+            font_weight: style.font_weight,
+            font_variations: style.font_variations,
+            font_features: style.font_features,
+            locale: style.locale,
+            word_spacing: style.word_spacing,
+            letter_spacing: style.letter_spacing,
+        }
+    }
+}
+
+/// Rendering-only style data (no font properties).
+/// Used for layout and painting which don't need font selection information.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct RenderStyleData<B: Brush> {
+    /// Brush for rendering text.
+    pub(crate) brush: B,
+    /// Underline decoration.
+    pub(crate) underline: ResolvedDecoration<B>,
+    /// Strikethrough decoration.
+    pub(crate) strikethrough: ResolvedDecoration<B>,
+    /// Line height.
+    pub(crate) line_height: LineHeight,
+    /// Control over where words can wrap.
+    pub(crate) word_break: WordBreakStrength,
+    /// Control over "emergency" line-breaking.
+    pub(crate) overflow_wrap: OverflowWrap,
+    /// Control over non-"emergency" line-breaking.
+    pub(crate) text_wrap_mode: TextWrapMode,
+}
+
+impl<B: Brush> RenderStyleData<B> {
+    /// Extract rendering-only data from a ResolvedStyle (dropping font properties).
+    pub(crate) fn from_resolved_style(style: &ResolvedStyle<B>) -> Self {
+        Self {
+            brush: style.brush.clone(),
+            underline: style.underline.clone(),
+            strikethrough: style.strikethrough.clone(),
+            line_height: style.line_height,
+            word_break: style.word_break,
+            overflow_wrap: style.overflow_wrap,
+            text_wrap_mode: style.text_wrap_mode,
+        }
+    }
+}
+
 
 #[derive(Clone)]
 struct RangedProperty<B: Brush> {
@@ -133,7 +292,7 @@ impl ResolveContext {
     ) -> ResolvedProperty<B> {
         use ResolvedProperty::*;
         match property {
-            StyleProperty::FontStack(value) => FontStack(self.resolve_stack(fcx, value)),
+            StyleProperty::FontStack(value) => FontStack(self.resolve_stack::<B>(fcx, value)),
             StyleProperty::FontSize(value) => FontSize(*value * scale),
             StyleProperty::FontWidth(value) => FontWidth(*value),
             StyleProperty::FontStyle(value) => FontStyle(*value),
@@ -168,7 +327,7 @@ impl ResolveContext {
         scale: f32,
     ) -> ResolvedStyle<B> {
         ResolvedStyle {
-            font_stack: self.resolve_stack(fcx, &raw_style.font_stack),
+            font_stack: self.resolve_stack::<B>(fcx, &raw_style.font_stack),
             font_size: raw_style.font_size * scale,
             font_width: raw_style.font_width,
             font_style: raw_style.font_style,
@@ -199,7 +358,7 @@ impl ResolveContext {
     }
 
     /// Resolves a font stack.
-    pub(crate) fn resolve_stack(
+    pub(crate) fn resolve_stack<B: Brush>(
         &mut self,
         fcx: &mut FontContext,
         stack: &FontStack<'_>,
@@ -479,16 +638,6 @@ impl<B: Brush> ResolvedStyle<B> {
         }
     }
 
-    pub(crate) fn as_layout_style(&self) -> layout::Style<B> {
-        layout::Style {
-            brush: self.brush.clone(),
-            underline: self.underline.as_layout_decoration(&self.brush),
-            strikethrough: self.strikethrough.as_layout_decoration(&self.brush),
-            line_height: self.line_height,
-            overflow_wrap: self.overflow_wrap,
-            text_wrap_mode: self.text_wrap_mode,
-        }
-    }
 }
 
 /// Underline or strikethrough decoration.

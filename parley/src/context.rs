@@ -161,7 +161,7 @@ impl<B: Brush> LayoutContext<B> {
             // self.styles should span the entire range of the text.
             while let Some(style) = self.styles.get(style_idx) {
                 if style.range.end > char_idx {
-                    word_break = style.style.word_break;
+                    word_break = style.render_style.word_break;
                     break;
                 }
                 style_idx += 1;

@@ -75,7 +75,8 @@ impl<B: Brush> RangedStyleBuilder<B> {
             return;
         }
         styles.push(RangedStyle {
-            style: self.root_style.clone(),
+            font_style: std::sync::Arc::new(super::FontStyleData::from_resolved_style(&self.root_style)),
+            render_style: super::RenderStyleData::from_resolved_style(&self.root_style),
             range: 0..self.len,
         });
         for prop in &self.properties {
@@ -86,12 +87,12 @@ impl<B: Brush> RangedStyleBuilder<B> {
             let mut inserted = 0;
             if let Some(first) = split_range.first {
                 let original_span = &mut styles[first];
-                if !original_span.style.check(&prop.property) {
+                if !original_span.check(&prop.property) {
                     let mut new_span = original_span.clone();
                     let original_end = original_span.range.end;
                     original_span.range.end = prop.range.start;
                     new_span.range.start = prop.range.start;
-                    new_span.style.apply(prop.property.clone());
+                    new_span.apply(prop.property.clone());
                     if split_range.replace_len == 0 && split_range.last == Some(first) {
                         let mut new_end_span = original_span.clone();
                         new_end_span.range.start = prop.range.end;
@@ -111,16 +112,16 @@ impl<B: Brush> RangedStyleBuilder<B> {
             let replace_start = split_range.replace_start + inserted;
             let replace_end = replace_start + split_range.replace_len;
             for style in &mut styles[replace_start..replace_end] {
-                style.style.apply(prop.property.clone());
+                style.apply(prop.property.clone());
             }
             if let Some(mut last) = split_range.last {
                 last += inserted;
                 let original_span = &mut styles[last];
-                if !original_span.style.check(&prop.property) {
+                if !original_span.check(&prop.property) {
                     let mut new_span = original_span.clone();
                     original_span.range.start = prop.range.end;
                     new_span.range.end = prop.range.end;
-                    new_span.style.apply(prop.property.clone());
+                    new_span.apply(prop.property.clone());
                     styles.insert(last, new_span);
                 }
             }
@@ -128,7 +129,8 @@ impl<B: Brush> RangedStyleBuilder<B> {
         let mut prev_index = 0;
         let mut merged_count = 0;
         for i in 1..styles.len() {
-            if styles[prev_index].style == styles[i].style {
+            if *styles[prev_index].font_style == *styles[i].font_style &&
+               styles[prev_index].render_style == styles[i].render_style {
                 let end = styles[i].range.end;
                 styles[prev_index].range.end = end;
                 merged_count += 1;
