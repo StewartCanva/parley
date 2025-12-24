@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 use std::sync::Arc;
+use linebender_resource_handle::FontData;
 use fontique::Blob;
 use crate::{
     FontContext, FontFamily, FontStack, Layout, LayoutContext,
-    StyleProperty, CanvaFontSelectionStrategy, Font
+    StyleProperty, CanvaFontSelectionStrategy
 };
 
 use super::utils::ColorBrush;
@@ -17,46 +18,46 @@ fn test_canva_font_selection_strategy() {
     let mut font_ctx = FontContext::new();
 
     // Load the three test fonts
-    let font_af_data = std::fs::read("/Users/stewart/work/test/fonttest/font_af.ttf")
-        .expect("Failed to load FontAF");
-    let font_gs_data = std::fs::read("/Users/stewart/work/test/fonttest/font_gs.ttf")
-        .expect("Failed to load FontGS");
-    let font_tz_data = std::fs::read("/Users/stewart/work/test/fonttest/font_tz.ttf")
-        .expect("Failed to load FontTZ");
+    let font_ag_data = std::fs::read("/Users/conor/work/font_splitting/FontAG.ttf")
+        .expect("Failed to load FontAG");
+    let font_hv_data = std::fs::read("/Users/conor/work/font_splitting/FontHV.ttf")
+        .expect("Failed to load FontHV");
+    let font_wz_data = std::fs::read("/Users/conor/work/font_splitting/FontWZ.ttf")
+        .expect("Failed to load FontWZ");
 
     // Create blob objects that will be registered
-    let blob_af = Blob::new(Arc::new(font_af_data));
-    let blob_gs = Blob::new(Arc::new(font_gs_data));
-    let blob_tz = Blob::new(Arc::new(font_tz_data));
+    let blob_ag = Blob::new(Arc::new(font_ag_data));
+    let blob_hv = Blob::new(Arc::new(font_hv_data));
+    let blob_wz = Blob::new(Arc::new(font_wz_data));
 
     // Register fonts with collection
-    font_ctx.collection.register_fonts(blob_af.clone(), None);
-    font_ctx.collection.register_fonts(blob_gs.clone(), None);
-    font_ctx.collection.register_fonts(blob_tz.clone(), None);
+    font_ctx.collection.register_fonts(blob_ag.clone(), None);
+    font_ctx.collection.register_fonts(blob_hv.clone(), None);
+    font_ctx.collection.register_fonts(blob_wz.clone(), None);
 
     // Verify fonts are registered
-    assert!(font_ctx.collection.family_id("FontAF").is_some(), "FontAF not registered");
-    assert!(font_ctx.collection.family_id("FontGS").is_some(), "FontGS not registered");
-    assert!(font_ctx.collection.family_id("FontTZ").is_some(), "FontTZ not registered");
+    assert!(font_ctx.collection.family_id("FontAG").is_some(), "FontAG not registered");
+    assert!(font_ctx.collection.family_id("FontHV").is_some(), "FontHV not registered");
+    assert!(font_ctx.collection.family_id("FontWZ").is_some(), "FontWZ not registered");
 
     // Create Font objects for the strategy using the same blobs
-    let font_af = Font::new(blob_af, 0);
-    let font_gs = Font::new(blob_gs, 0);
-    let font_tz = Font::new(blob_tz, 0);
+    let font_ag = FontData::new(blob_ag, 0);
+    let font_hv = FontData::new(blob_hv, 0);
+    let font_wz = FontData::new(blob_wz, 0);
 
     // Set up Canva font selection strategy
     let mut canva_strategy = CanvaFontSelectionStrategy::new();
 
     // Configure unicode ranges with different synthesis to test the functionality:
-    // FontGS for J-S with regular synthesis
-    canva_strategy.add_unicode_range_with_synthesis(0x4A..0x54, font_gs.clone(), fontique::Synthesis::default()); // J-S uppercase, regular
-    canva_strategy.add_unicode_range_with_synthesis(0x6A..0x74, font_gs.clone(), fontique::Synthesis::default()); // j-s lowercase, regular
+    // FontHV for K-V with regular synthesis
+    canva_strategy.add_unicode_range_with_synthesis(0x4B..0x55, font_hv.clone(), fontique::Synthesis::default()); // J-S uppercase, regular
+    //canva_strategy.add_unicode_range_with_synthesis(0x6A..0x74, font_hv.clone(), fontique::Synthesis::default()); // j-s lowercase, regular
 
-    // FontTZ for W-Z with regular synthesis
-    canva_strategy.add_unicode_range_with_synthesis(0x57..0x5B, font_tz.clone(), fontique::Synthesis::default()); // W-Z uppercase, regular
-    canva_strategy.add_unicode_range_with_synthesis(0x77..0x7B, font_tz.clone(), fontique::Synthesis::default()); // w-z lowercase, regular
+    // FontWZ for Y-Z with regular synthesis
+    canva_strategy.add_unicode_range_with_synthesis(0x59..0x5B, font_wz.clone(), fontique::Synthesis::default()); // W-Z uppercase, regular
+    //canva_strategy.add_unicode_range_with_synthesis(0x77..0x7B, font_wz.clone(), fontique::Synthesis::default()); // w-z lowercase, regular
 
-    assert_eq!(canva_strategy.len(), 4, "Should have 4 unicode ranges configured");
+    assert_eq!(canva_strategy.len(), 2, "Should have 2 unicode ranges configured");
 
     // Note: In the future, you could add synthesis variants like:
     // let bold_synthesis = create_bold_synthesis();
@@ -69,13 +70,13 @@ fn test_canva_font_selection_strategy() {
     // Create layout context
     let mut layout_cx: LayoutContext<ColorBrush> = LayoutContext::new();
 
-    // Test with full alphabet - FontAF should only handle A-F
+    // Test with full alphabet - FontAG should only handle A-G
     let text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-    // Create layout with FontAF as primary font
+    // Create layout with FontAG as primary font
     let mut builder = layout_cx.ranged_builder(&mut font_ctx, text, 1.0, true);
     builder.push_default(StyleProperty::FontStack(FontStack::Single(
-        FontFamily::Named(std::borrow::Cow::Borrowed("FontAF"))
+        FontFamily::Named(std::borrow::Cow::Borrowed("FontAG"))
     )));
     builder.push_default(StyleProperty::FontSize(16.0));
 
@@ -83,22 +84,22 @@ fn test_canva_font_selection_strategy() {
     layout.break_all_lines(None);
 
     // Verify the font selection results
-    verify_font_selection(&layout, &font_af, &font_gs, &font_tz);
+    verify_font_selection(&layout, &font_ag, &font_hv, &font_wz);
 }
 
 fn verify_font_selection(
     layout: &Layout<ColorBrush>,
-    font_af: &Font,
-    font_gs: &Font,
-    font_tz: &Font
+    font_ag: &FontData,
+    font_hv: &FontData,
+    font_wz: &FontData
 ) {
     let test_text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     println!("\n=== Font Selection Results ===");
     println!("Test text: {}", test_text);
     println!("Font mappings:");
-    println!("  FontAF: blob_id {} (A-F primary)", font_af.data.id());
-    println!("  FontGS: blob_id {} (J-S ranges)", font_gs.data.id());
-    println!("  FontTZ: blob_id {} (W-Z ranges)", font_tz.data.id());
+    println!("  FontAG: blob_id {} (A-G primary)", font_ag.data.id());
+    println!("  FontHV: blob_id {} (H-V ranges)", font_hv.data.id());
+    println!("  FontWZ: blob_id {} (W-Z ranges)", font_wz.data.id());
     println!();
 
     let mut runs_info = Vec::new();
@@ -124,12 +125,12 @@ fn verify_font_selection(
     println!("Character-by-character results:");
     for (i, ch) in test_text.chars().enumerate() {
         let font_name = if let Some(&blob_id) = char_to_font.get(&i) {
-            if blob_id == font_gs.data.id() {
-                format!("FontGS (blob_id {})", blob_id)
-            } else if blob_id == font_tz.data.id() {
-                format!("FontTZ (blob_id {})", blob_id)
-            } else if blob_id == font_af.data.id() {
-                format!("FontAF (blob_id {})", blob_id)
+            if blob_id == font_hv.data.id() {
+                format!("FontHV (blob_id {})", blob_id)
+            } else if blob_id == font_wz.data.id() {
+                format!("FontWZ (blob_id {})", blob_id)
+            } else if blob_id == font_ag.data.id() {
+                format!("FontAG (blob_id {})", blob_id)
             } else {
                 format!("Unknown font (blob_id {})", blob_id)
             }
@@ -158,11 +159,11 @@ fn verify_font_selection(
         let end_char = text_range.end - 1;
 
         // For the full alphabet test, we'll see what actually happens
-        // Expected: A-F should use FontAF, others should fall back
+        // Expected: A-G should use FontAG, others should fall back
         // But we'll let the debug output show us the real behavior
         let expected_font = if start_char <= 25 && end_char <= 25 {
             // We'll validate whatever font is actually used for now
-            Some((font_af, "FontAF (or other)"))
+            Some((font_ag, "FontAG (or other)"))
         } else {
             None
         };
@@ -178,7 +179,7 @@ fn verify_font_selection(
     assert!(!verified_ranges.is_empty(), "No font ranges were successfully verified");
 
     // Based on discovered behavior, FontAF handles all characters
-    assert!(verified_ranges.iter().any(|s| s.contains("FontAF")), "FontAF usage not verified");
+    assert!(verified_ranges.iter().any(|s| s.contains("FontAG")), "FontAG usage not verified");
 }
 
 /// Test the default font selection strategy to verify original behavior is preserved.
@@ -188,32 +189,32 @@ fn test_default_font_selection_strategy() {
     let mut font_ctx = FontContext::new();
 
     // Load the three test fonts
-    let font_af_data = std::fs::read("/Users/stewart/work/test/fonttest/font_af.ttf")
-        .expect("Failed to load FontAF");
-    let font_gs_data = std::fs::read("/Users/stewart/work/test/fonttest/font_gs.ttf")
-        .expect("Failed to load FontGS");
-    let font_tz_data = std::fs::read("/Users/stewart/work/test/fonttest/font_tz.ttf")
-        .expect("Failed to load FontTZ");
+    let font_ag_data = std::fs::read("/Users/conor/work/font_splitting/FontAG.ttf")
+        .expect("Failed to load FontAG");
+    let font_hv_data = std::fs::read("/Users/conor/work/font_splitting/FontHV.ttf")
+        .expect("Failed to load FontHV");
+    let font_wz_data = std::fs::read("/Users/conor/work/font_splitting/FontWZ.ttf")
+        .expect("Failed to load FontWZ");
 
     // Create blob objects that will be registered
-    let blob_af = Blob::new(Arc::new(font_af_data));
-    let blob_gs = Blob::new(Arc::new(font_gs_data));
-    let blob_tz = Blob::new(Arc::new(font_tz_data));
+    let blob_ag = Blob::new(Arc::new(font_ag_data));
+    let blob_hv = Blob::new(Arc::new(font_hv_data));
+    let blob_wz = Blob::new(Arc::new(font_wz_data));
 
     // Register fonts with collection
-    font_ctx.collection.register_fonts(blob_af.clone(), None);
-    font_ctx.collection.register_fonts(blob_gs.clone(), None);
-    font_ctx.collection.register_fonts(blob_tz.clone(), None);
+    font_ctx.collection.register_fonts(blob_ag.clone(), None);
+    font_ctx.collection.register_fonts(blob_hv.clone(), None);
+    font_ctx.collection.register_fonts(blob_wz.clone(), None);
 
     // Verify fonts are registered
-    assert!(font_ctx.collection.family_id("FontAF").is_some(), "FontAF not registered");
-    assert!(font_ctx.collection.family_id("FontGS").is_some(), "FontGS not registered");
-    assert!(font_ctx.collection.family_id("FontTZ").is_some(), "FontTZ not registered");
+    assert!(font_ctx.collection.family_id("FontAG").is_some(), "FontAG not registered");
+    assert!(font_ctx.collection.family_id("FontHV").is_some(), "FontHV not registered");
+    assert!(font_ctx.collection.family_id("FontWZ").is_some(), "FontWZ not registered");
 
     // Create Font objects for reference
-    let font_af = Font::new(blob_af, 0);
-    let font_gs = Font::new(blob_gs, 0);
-    let font_tz = Font::new(blob_tz, 0);
+    let font_ag = FontData::new(blob_ag, 0);
+    let font_hv = FontData::new(blob_hv, 0);
+    let font_wz = FontData::new(blob_wz, 0);
 
     // Use default strategy (don't set any custom strategy)
     // This should use DefaultFontSelectionStrategy automatically
@@ -221,13 +222,13 @@ fn test_default_font_selection_strategy() {
     // Create layout context
     let mut layout_cx: LayoutContext<ColorBrush> = LayoutContext::new();
 
-    // Test with full alphabet - FontAF should only handle A-F
+    // Test with full alphabet - FontAG should only handle A-G
     let text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-    // Create layout with FontAF as primary font
+    // Create layout with FontAG as primary font
     let mut builder = layout_cx.ranged_builder(&mut font_ctx, text, 1.0, true);
     builder.push_default(StyleProperty::FontStack(FontStack::Single(
-        FontFamily::Named(std::borrow::Cow::Borrowed("FontAF"))
+        FontFamily::Named(std::borrow::Cow::Borrowed("FontAG"))
     )));
     builder.push_default(StyleProperty::FontSize(16.0));
 
@@ -235,22 +236,22 @@ fn test_default_font_selection_strategy() {
     layout.break_all_lines(None);
 
     // Verify the font selection results
-    verify_default_font_selection(&layout, &font_af, &font_gs, &font_tz);
+    verify_default_font_selection(&layout, &font_ag, &font_hv, &font_wz);
 }
 
 fn verify_default_font_selection(
     layout: &Layout<ColorBrush>,
-    font_af: &Font,
-    font_gs: &Font,
-    font_tz: &Font
+    font_ag: &FontData,
+    font_hv: &FontData,
+    font_wz: &FontData
 ) {
     let test_text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     println!("\n=== Default Font Selection Results ===");
     println!("Test text: {}", test_text);
     println!("Available fonts:");
-    println!("  FontAF: blob_id {} (primary in stack)", font_af.data.id());
-    println!("  FontGS: blob_id {} (available in collection)", font_gs.data.id());
-    println!("  FontTZ: blob_id {} (available in collection)", font_tz.data.id());
+    println!("  FontAG: blob_id {} (primary in stack)", font_ag.data.id());
+    println!("  FontHV: blob_id {} (available in collection)", font_hv.data.id());
+    println!("  FontWZ: blob_id {} (available in collection)", font_wz.data.id());
     println!("Strategy: DefaultFontSelectionStrategy (original behavior)");
     println!();
 
@@ -277,12 +278,12 @@ fn verify_default_font_selection(
     println!("Character-by-character results:");
     for (i, ch) in test_text.chars().enumerate() {
         let font_name = if let Some(&blob_id) = char_to_font.get(&i) {
-            if blob_id == font_af.data.id() {
-                format!("FontAF (blob_id {})", blob_id)
-            } else if blob_id == font_gs.data.id() {
-                format!("FontGS (blob_id {})", blob_id)
-            } else if blob_id == font_tz.data.id() {
-                format!("FontTZ (blob_id {})", blob_id)
+            if blob_id == font_ag.data.id() {
+                format!("FontAG (blob_id {})", blob_id)
+            } else if blob_id == font_hv.data.id() {
+                format!("FontHV (blob_id {})", blob_id)
+            } else if blob_id == font_wz.data.id() {
+                format!("FontWZ (blob_id {})", blob_id)
             } else {
                 format!("Unknown font (blob_id {})", blob_id)
             }
@@ -309,19 +310,19 @@ fn test_strategy_reusability() {
     let mut font_cx = crate::tests::utils::create_font_context();
     let mut layout_cx: LayoutContext<ColorBrush> = LayoutContext::new();
 
-    // Load FontAF data
-    let font_af_data = std::fs::read("/Users/stewart/work/test/fonttest/font_af.ttf")
-        .expect("Failed to load FontAF");
-    let blob_af = Blob::new(Arc::new(font_af_data));
+    // Load FontAG data
+    let font_ag_data = std::fs::read("/Users/conor/work/font_splitting/FontAG.ttf")
+        .expect("Failed to load FontAG");
+    let blob_ag = Blob::new(Arc::new(font_ag_data));
 
     // Register the font with the collection
-    font_cx.collection.register_fonts(blob_af.clone(), None);
+    font_cx.collection.register_fonts(blob_ag.clone(), None);
 
     // Set up a simple Canva strategy
     let mut canva_strategy = CanvaFontSelectionStrategy::new();
     canva_strategy.add_unicode_range_with_synthesis(
-        'A' as u32..('G' as u32), // Range, not RangeInclusive
-        Font::new(blob_af.clone(), 0),
+        'A' as u32..('H' as u32), // Range, not RangeInclusive
+        FontData::new(blob_ag.clone(), 0),
         fontique::Synthesis::default()
     );
     font_cx.set_font_selection_strategy(canva_strategy);
@@ -332,9 +333,9 @@ fn test_strategy_reusability() {
     for i in 0..3 {
         let mut builder = layout_cx.ranged_builder(&mut font_cx, text, 1.0, true);
 
-        // Set up basic styling with FontAF as primary font
+        // Set up basic styling with FontAG as primary font
         builder.push_default(StyleProperty::FontStack(FontStack::Single(
-            FontFamily::Named(std::borrow::Cow::Borrowed("FontAF"))
+            FontFamily::Named(std::borrow::Cow::Borrowed("FontAG"))
         )));
         builder.push_default(StyleProperty::FontSize(16.0));
 
