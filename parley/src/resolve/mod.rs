@@ -19,11 +19,11 @@ use crate::style::TextStyle;
 use crate::util::nearly_eq;
 use crate::{LineHeight, OverflowWrap, layout};
 use crate::{TextWrapMode, WordBreak};
+use alloc::sync::Arc;
 use core::borrow::Borrow;
 use core::ops::Range;
 use fontique::FamilyId;
 use fontique::Language;
-use std::sync::Arc;
 
 /// Style with an associated range.
 #[derive(Debug, Clone)]

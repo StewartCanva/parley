@@ -7,9 +7,9 @@ mod provider;
 use crate::analysis::provider::PROVIDER;
 use crate::resolve::{FontStyleData, RangedStyle, RenderStyleData};
 use crate::{Brush, LayoutContext, WordBreak};
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
-use std::sync::Arc;
 
 use icu_normalizer::properties::{
     CanonicalComposition, CanonicalCompositionBorrowed, CanonicalDecomposition,

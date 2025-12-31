@@ -1,9 +1,9 @@
 // Copyright 2021 the Parley Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
+use alloc::sync::Arc;
 use fontique::Collection;
 use fontique::SourceCache;
-use std::sync::Arc;
 
 /// A font database/cache (wrapper around a Fontique [`Collection`] and [`SourceCache`]).
 ///

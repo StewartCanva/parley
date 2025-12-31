@@ -5,8 +5,8 @@
 
 use crate::analysis::AnalysisDataSources;
 use crate::analysis::cluster::CharCluster;
+use core::ops::Range;
 use linebender_resource_handle::FontData;
-use std::ops::Range;
 
 /// Represents the result of font selection for a text cluster.
 #[derive(Debug, Clone)]

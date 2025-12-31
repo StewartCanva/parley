@@ -4,9 +4,9 @@
 //! Text shaping implementation using `harfrust`for shaping
 //! and `icu` for text analysis.
 
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::ops::RangeInclusive;
-use std::sync::Arc;
 
 use super::layout::Layout;
 use super::resolve::{RangedStyle, ResolveContext, Resolved};

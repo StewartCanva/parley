@@ -75,7 +75,7 @@ impl<B: Brush> RangedStyleBuilder<B> {
             return;
         }
         styles.push(RangedStyle {
-            font_style: std::sync::Arc::new(super::FontStyleData::from_resolved_style(
+            font_style: alloc::sync::Arc::new(super::FontStyleData::from_resolved_style(
                 &self.root_style,
             )),
             render_style: super::RenderStyleData::from_resolved_style(&self.root_style),

@@ -5,9 +5,9 @@ use crate::{
     CanvaFontSelectionStrategy, FontContext, FontFamily, FontStack, Layout, LayoutContext,
     StyleProperty,
 };
+use alloc::sync::Arc;
 use fontique::Blob;
 use linebender_resource_handle::FontData;
-use std::sync::Arc;
 
 use super::utils::ColorBrush;
 
