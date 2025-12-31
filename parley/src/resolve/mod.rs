@@ -58,7 +58,7 @@ impl<B: Brush> RangedStyle<B> {
         }
     }
 
-    /// Create a temporary ResolvedStyle for operations that need the full style.
+    /// Create a temporary `ResolvedStyle` for operations that need the full style.
     fn as_resolved_style(&self) -> ResolvedStyle<B> {
         ResolvedStyle {
             font_stack: self.font_style.font_stack,
@@ -98,7 +98,7 @@ impl<B: Brush> RangedStyle<B> {
         )
     }
 
-    /// Convert to a layout::Style for rendering.
+    /// Convert to a `layout::Style` for rendering.
     pub(crate) fn as_layout_style(&self) -> layout::Style<B> {
         layout::Style {
             brush: self.render_style.brush.clone(),
@@ -144,7 +144,7 @@ pub(crate) struct FontStyleData {
 }
 
 impl FontStyleData {
-    /// Extract font-only data from a ResolvedStyle (dropping brush/rendering properties).
+    /// Extract font-only data from a `ResolvedStyle` (dropping brush/rendering properties).
     pub(crate) fn from_resolved_style<B: Brush>(style: &ResolvedStyle<B>) -> Self {
         Self {
             font_stack: style.font_stack,
@@ -182,7 +182,7 @@ pub(crate) struct RenderStyleData<B: Brush> {
 }
 
 impl<B: Brush> RenderStyleData<B> {
-    /// Extract rendering-only data from a ResolvedStyle (dropping font properties).
+    /// Extract rendering-only data from a `ResolvedStyle` (dropping font properties).
     pub(crate) fn from_resolved_style(style: &ResolvedStyle<B>) -> Self {
         Self {
             brush: style.brush.clone(),
@@ -299,7 +299,7 @@ impl ResolveContext {
     ) -> ResolvedProperty<B> {
         use ResolvedProperty::*;
         match property {
-            StyleProperty::FontStack(value) => FontStack(self.resolve_stack::<B>(fcx, value)),
+            StyleProperty::FontStack(value) => FontStack(self.resolve_stack(fcx, value)),
             StyleProperty::FontSize(value) => FontSize(*value * scale),
             StyleProperty::FontWidth(value) => FontWidth(*value),
             StyleProperty::FontStyle(value) => FontStyle(*value),
@@ -336,7 +336,7 @@ impl ResolveContext {
         scale: f32,
     ) -> ResolvedStyle<B> {
         ResolvedStyle {
-            font_stack: self.resolve_stack::<B>(fcx, &raw_style.font_stack),
+            font_stack: self.resolve_stack(fcx, &raw_style.font_stack),
             font_size: raw_style.font_size * scale,
             font_width: raw_style.font_width,
             font_style: raw_style.font_style,
@@ -369,7 +369,7 @@ impl ResolveContext {
     }
 
     /// Resolves a font stack.
-    pub(crate) fn resolve_stack<B: Brush>(
+    pub(crate) fn resolve_stack(
         &mut self,
         fcx: &mut FontContext,
         stack: &FontStack<'_>,

@@ -14,7 +14,7 @@ use std::{
 
 use parley::{
     FontContext, FontFamily, LayoutContext,
-    fontique::{Blob, Collection, CollectionOptions, SourceCache},
+    fontique::{Blob, Collection, CollectionOptions},
 };
 
 pub mod benches;

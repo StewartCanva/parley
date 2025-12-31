@@ -50,7 +50,7 @@ impl FallbackSegment {
 ///
 /// Strategies should be designed to be stateless during font selection, or at least
 /// safe to call multiple times with different text. The same strategy instance will
-/// be reused across multiple layout operations on the same FontContext.
+/// be reused across multiple layout operations on the same `FontContext`.
 pub trait FontSelectionStrategy: Send + Sync {
     /// Determine the fallback mode for system fonts.
     fn fallback_mode(&self) -> crate::shape::FallbackMode;
@@ -58,19 +58,19 @@ pub trait FontSelectionStrategy: Send + Sync {
     /// Select a font for a specific text cluster.
     ///
     /// This method is called for each text cluster during shaping. It should:
-    /// 1. Try primary fonts using the provided FontSelector
+    /// 1. Try primary fonts using the provided `FontSelector`
     /// 2. If primary fonts fail, apply custom fallback logic
-    /// 3. Return appropriate FontSelectionResult
+    /// 3. Return appropriate `FontSelectionResult`
     ///
-    /// # CRITICAL: UseFallbackSegments Limitations
+    /// # CRITICAL: `UseFallbackSegments` Limitations
     ///
-    /// **UseFallbackSegments can only be used for single-cluster scenarios.**
+    /// **`UseFallbackSegments` can only be used for single-cluster scenarios.**
     ///
     /// The segments **must** cover exactly the character range of the current
     /// cluster being processed. The shaping engine advances by exactly one cluster
     /// after processing segments, regardless of how many characters the segments cover.
     ///
-    /// **Multi-cluster fallback is NOT supported via UseFallbackSegments** - it will
+    /// **Multi-cluster fallback is NOT supported via `UseFallbackSegments`** - it will
     /// cause text positioning corruption. For complex fallback scenarios spanning
     /// multiple clusters, implement the logic in `select_font_for_cluster` to return
     /// `UseFont` or `NoFont` for each individual cluster as it's processed.
@@ -94,7 +94,7 @@ pub trait FontSelectionStrategy: Send + Sync {
 /// - Uses system fallbacks when primary fonts fail
 /// - Maintains all existing performance characteristics
 /// - Provides identical behavior to pre-strategy Parley
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct DefaultFontSelectionStrategy;
 
 impl DefaultFontSelectionStrategy {
@@ -134,9 +134,9 @@ impl FontSelectionStrategy for DefaultFontSelectionStrategy {
 /// This strategy implements Canva's requirements:
 /// - Try primary fonts first
 /// - If primary fonts fail, check Unicode range mappings
-/// - If no mapping exists, return NoFont (no system fallback)
-/// - Prevents system fallbacks by using PrimaryFontsOnly mode
-#[derive(Clone)]
+/// - If no mapping exists, return `NoFont` (no system fallback)
+/// - Prevents system fallbacks by using `PrimaryFontsOnly` mode
+#[derive(Clone, Default)]
 pub struct CanvaFontSelectionStrategy {
     ranges: Vec<UnicodeRangeEntry>,
 }
@@ -228,7 +228,7 @@ impl FontSelectionStrategy for CanvaFontSelectionStrategy {
                     segments.push(FallbackSegment::new(
                         absolute_char_position..(absolute_char_position + 1),
                         entry.font.clone(),
-                        entry.synthesis.clone(),
+                        entry.synthesis,
                     ));
                     found_match = true;
                     break;

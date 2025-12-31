@@ -9,6 +9,7 @@ use std::sync::Arc;
 ///
 /// This type is designed to be a global resource with only one per-application (or per-thread).
 /// A font database/cache and font selection configuration.
+#[derive(Default)]
 pub struct FontContext {
     pub collection: Collection,
     pub source_cache: SourceCache,
@@ -16,20 +17,10 @@ pub struct FontContext {
         Option<Arc<dyn crate::font_selection::FontSelectionStrategy + Send + Sync>>,
 }
 
-impl Default for FontContext {
-    fn default() -> Self {
-        Self {
-            collection: Collection::default(),
-            source_cache: SourceCache::default(),
-            font_selection_strategy: None,
-        }
-    }
-}
-
 impl Clone for FontContext {
-    /// Clone the FontContext, including any custom font selection strategy.
+    /// Clone the `FontContext`, including any custom font selection strategy.
     ///
-    /// Custom strategies are properly cloned, so the cloned FontContext will
+    /// Custom strategies are properly cloned, so the cloned `FontContext` will
     /// maintain the same font selection behavior as the original.
     fn clone(&self) -> Self {
         Self {
@@ -48,7 +39,7 @@ impl FontContext {
 
     pub fn set_font_selection_strategy(
         &mut self,
-        strategy: impl crate::font_selection::FontSelectionStrategy + Send + Sync + 'static,
+        strategy: impl crate::font_selection::FontSelectionStrategy + 'static,
     ) {
         self.font_selection_strategy = Some(Arc::new(strategy));
     }

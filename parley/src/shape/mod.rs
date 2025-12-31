@@ -95,7 +95,7 @@ pub(crate) fn char_ranges_to_byte_ranges(
     }
 
     // Handle end-of-text positions (clamp to text boundaries)
-    while let Some((char_pos, range_idx, is_end)) = pos_iter.next() {
+    for (char_pos, range_idx, is_end) in pos_iter {
         if *char_pos >= char_index {
             if *is_end {
                 end_positions[*range_idx] = Some(text.len());
@@ -841,7 +841,7 @@ fn shape_segment_with_harfrust<B: Brush>(
     layout.data.push_run(
         font.clone(), // Clone for push_run
         item.size,
-        synthesis.clone(),
+        *synthesis,
         &glyph_buffer,
         item.level,
         item.style_index,

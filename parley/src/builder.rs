@@ -63,7 +63,7 @@ impl<B: Brush> RangedBuilder<'_, B> {
                 self.lcx,
                 query,
                 strategy,
-            )
+            );
         });
     }
 
@@ -146,7 +146,7 @@ impl<B: Brush> TreeBuilder<'_, B> {
                 self.lcx,
                 query,
                 strategy,
-            )
+            );
         });
 
         text
