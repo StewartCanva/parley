@@ -138,7 +138,15 @@ impl<B: Brush> TreeBuilder<'_, B> {
 
         // Call generic layout builder method using FontContext's strategy
         self.fcx.with_query_and_strategy(|query, strategy| {
-            build_into_layout_with_query(layout, self.scale, self.quantize, &text, self.lcx, query, strategy)
+            build_into_layout_with_query(
+                layout,
+                self.scale,
+                self.quantize,
+                &text,
+                self.lcx,
+                query,
+                strategy,
+            )
         });
 
         text

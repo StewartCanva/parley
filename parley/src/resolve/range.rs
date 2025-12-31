@@ -75,7 +75,9 @@ impl<B: Brush> RangedStyleBuilder<B> {
             return;
         }
         styles.push(RangedStyle {
-            font_style: std::sync::Arc::new(super::FontStyleData::from_resolved_style(&self.root_style)),
+            font_style: std::sync::Arc::new(super::FontStyleData::from_resolved_style(
+                &self.root_style,
+            )),
             render_style: super::RenderStyleData::from_resolved_style(&self.root_style),
             range: 0..self.len,
         });
@@ -129,8 +131,9 @@ impl<B: Brush> RangedStyleBuilder<B> {
         let mut prev_index = 0;
         let mut merged_count = 0;
         for i in 1..styles.len() {
-            if *styles[prev_index].font_style == *styles[i].font_style &&
-               styles[prev_index].render_style == styles[i].render_style {
+            if *styles[prev_index].font_style == *styles[i].font_style
+                && styles[prev_index].render_style == styles[i].render_style
+            {
                 let end = styles[i].range.end;
                 styles[prev_index].range.end = end;
                 merged_count += 1;

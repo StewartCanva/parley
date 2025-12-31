@@ -130,13 +130,13 @@ pub use builder::{RangedBuilder, TreeBuilder};
 pub use context::LayoutContext;
 pub use font::FontContext;
 pub use font_selection::{
-    FontSelectionStrategy, FontSelectionResult, FallbackSegment,
-    DefaultFontSelectionStrategy, CanvaFontSelectionStrategy,
+    CanvaFontSelectionStrategy, DefaultFontSelectionStrategy, FallbackSegment, FontSelectionResult,
+    FontSelectionStrategy,
 };
-pub use shape::{FallbackMode, SelectedFont};
 pub use inline_box::InlineBox;
 #[doc(inline)]
 pub use layout::Layout;
+pub use shape::{FallbackMode, SelectedFont};
 
 pub use editing::*;
 pub use layout::*;

@@ -68,7 +68,7 @@ impl<B: Brush> RangedStyle<B> {
             font_weight: self.font_style.font_weight,
             font_variations: self.font_style.font_variations,
             font_features: self.font_style.font_features,
-            locale: self.font_style.locale,
+            locale: self.font_style.locale.clone(),
             word_spacing: self.font_style.word_spacing,
             letter_spacing: self.font_style.letter_spacing,
             brush: self.render_style.brush.clone(),
@@ -83,17 +83,18 @@ impl<B: Brush> RangedStyle<B> {
 
     /// Check if a property affects font style (vs only render style).
     fn affects_font_style(&self, property: &ResolvedProperty<B>) -> bool {
-        matches!(property,
-            ResolvedProperty::FontStack(_) |
-            ResolvedProperty::FontSize(_) |
-            ResolvedProperty::FontWidth(_) |
-            ResolvedProperty::FontStyle(_) |
-            ResolvedProperty::FontWeight(_) |
-            ResolvedProperty::FontVariations(_) |
-            ResolvedProperty::FontFeatures(_) |
-            ResolvedProperty::Locale(_) |
-            ResolvedProperty::WordSpacing(_) |
-            ResolvedProperty::LetterSpacing(_)
+        matches!(
+            property,
+            ResolvedProperty::FontStack(_)
+                | ResolvedProperty::FontSize(_)
+                | ResolvedProperty::FontWidth(_)
+                | ResolvedProperty::FontStyle(_)
+                | ResolvedProperty::FontWeight(_)
+                | ResolvedProperty::FontVariations(_)
+                | ResolvedProperty::FontFeatures(_)
+                | ResolvedProperty::Locale(_)
+                | ResolvedProperty::WordSpacing(_)
+                | ResolvedProperty::LetterSpacing(_)
         )
     }
 
@@ -101,8 +102,14 @@ impl<B: Brush> RangedStyle<B> {
     pub(crate) fn as_layout_style(&self) -> layout::Style<B> {
         layout::Style {
             brush: self.render_style.brush.clone(),
-            underline: self.render_style.underline.as_layout_decoration(&self.render_style.brush),
-            strikethrough: self.render_style.strikethrough.as_layout_decoration(&self.render_style.brush),
+            underline: self
+                .render_style
+                .underline
+                .as_layout_decoration(&self.render_style.brush),
+            strikethrough: self
+                .render_style
+                .strikethrough
+                .as_layout_decoration(&self.render_style.brush),
             line_height: self.render_style.line_height,
             overflow_wrap: self.render_style.overflow_wrap,
             text_wrap_mode: self.render_style.text_wrap_mode,
@@ -112,7 +119,7 @@ impl<B: Brush> RangedStyle<B> {
 
 /// Font-only style data (no brush/rendering properties).
 /// Used for font selection which doesn't need rendering information.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub(crate) struct FontStyleData {
     /// Font stack.
     pub(crate) font_stack: Resolved<FamilyId>,
@@ -147,7 +154,7 @@ impl FontStyleData {
             font_weight: style.font_weight,
             font_variations: style.font_variations,
             font_features: style.font_features,
-            locale: style.locale,
+            locale: style.locale.clone(),
             word_spacing: style.word_spacing,
             letter_spacing: style.letter_spacing,
         }
@@ -156,7 +163,7 @@ impl FontStyleData {
 
 /// Rendering-only style data (no font properties).
 /// Used for layout and painting which don't need font selection information.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub(crate) struct RenderStyleData<B: Brush> {
     /// Brush for rendering text.
     pub(crate) brush: B,
@@ -167,7 +174,7 @@ pub(crate) struct RenderStyleData<B: Brush> {
     /// Line height.
     pub(crate) line_height: LineHeight,
     /// Control over where words can wrap.
-    pub(crate) word_break: WordBreakStrength,
+    pub(crate) word_break: WordBreak,
     /// Control over "emergency" line-breaking.
     pub(crate) overflow_wrap: OverflowWrap,
     /// Control over non-"emergency" line-breaking.
@@ -188,7 +195,6 @@ impl<B: Brush> RenderStyleData<B> {
         }
     }
 }
-
 
 #[derive(Clone)]
 struct RangedProperty<B: Brush> {
@@ -642,7 +648,6 @@ impl<B: Brush> ResolvedStyle<B> {
             TextWrapMode(value) => self.text_wrap_mode == *value,
         }
     }
-
 }
 
 /// Underline or strikethrough decoration.

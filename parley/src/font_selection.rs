@@ -3,8 +3,10 @@
 
 //! Font selection strategies for customizing font fallback behavior.
 
-use std::ops::Range;
+use crate::analysis::AnalysisDataSources;
+use crate::analysis::cluster::CharCluster;
 use linebender_resource_handle::FontData;
+use std::ops::Range;
 
 /// Represents the result of font selection for a text cluster.
 #[derive(Debug, Clone)]
@@ -29,10 +31,13 @@ pub struct FallbackSegment {
 }
 
 impl FallbackSegment {
-
     /// Create a new fallback segment with explicit synthesis.
     pub fn new(char_range: Range<usize>, font: FontData, synthesis: fontique::Synthesis) -> Self {
-        Self { char_range, font, synthesis }
+        Self {
+            char_range,
+            font,
+            synthesis,
+        }
     }
 }
 
@@ -49,7 +54,6 @@ impl FallbackSegment {
 pub trait FontSelectionStrategy: Send + Sync {
     /// Determine the fallback mode for system fonts.
     fn fallback_mode(&self) -> crate::shape::FallbackMode;
-
 
     /// Select a font for a specific text cluster.
     ///
@@ -76,10 +80,11 @@ pub trait FontSelectionStrategy: Send + Sync {
     #[allow(private_interfaces)]
     fn select_font_for_cluster<'a, 'b>(
         &self,
-        cluster: &mut swash::text::cluster::CharCluster,
+        cluster: &mut CharCluster,
         font_selector: &mut crate::shape::FontSelector<'a, 'b>,
         text: &str,
         char_range: Range<usize>,
+        analysis_data_sources: &AnalysisDataSources,
     ) -> FontSelectionResult;
 }
 
@@ -108,13 +113,15 @@ impl FontSelectionStrategy for DefaultFontSelectionStrategy {
     #[allow(private_interfaces)]
     fn select_font_for_cluster<'a, 'b>(
         &self,
-        cluster: &mut swash::text::cluster::CharCluster,
+        char_cluster: &mut CharCluster,
         font_selector: &mut crate::shape::FontSelector<'a, 'b>,
         _text: &str,
         _char_range: Range<usize>,
+        analysis_data_sources: &AnalysisDataSources,
     ) -> FontSelectionResult {
         // Pure delegation to original FontSelector (preserves all performance)
-        if let Some(selected_font) = font_selector.select_font(cluster) {
+        if let Some(selected_font) = font_selector.select_font(char_cluster, analysis_data_sources)
+        {
             FontSelectionResult::UseFont(selected_font)
         } else {
             FontSelectionResult::NoFont
@@ -126,7 +133,7 @@ impl FontSelectionStrategy for DefaultFontSelectionStrategy {
 ///
 /// This strategy implements Canva's requirements:
 /// - Try primary fonts first
-/// - If primary fonts fail, check unicode range mappings
+/// - If primary fonts fail, check Unicode range mappings
 /// - If no mapping exists, return NoFont (no system fallback)
 /// - Prevents system fallbacks by using PrimaryFontsOnly mode
 #[derive(Clone)]
@@ -144,25 +151,32 @@ struct UnicodeRangeEntry {
 impl CanvaFontSelectionStrategy {
     /// Create a new Canva font selection strategy.
     pub fn new() -> Self {
-        Self {
-            ranges: Vec::new(),
-        }
+        Self { ranges: Vec::new() }
     }
 
-    /// Add a unicode range mapping with synthesis.
+    /// Add a Unicode range mapping with synthesis.
     ///
     /// When primary fonts fail, characters in this range will use the specified font
     /// with the specified synthesis (bold/italic emulation).
-    pub fn add_unicode_range_with_synthesis(&mut self, range: Range<u32>, font: FontData, synthesis: fontique::Synthesis) {
-        self.ranges.push(UnicodeRangeEntry { range, font, synthesis });
+    pub fn add_unicode_range_with_synthesis(
+        &mut self,
+        range: Range<u32>,
+        font: FontData,
+        synthesis: fontique::Synthesis,
+    ) {
+        self.ranges.push(UnicodeRangeEntry {
+            range,
+            font,
+            synthesis,
+        });
     }
 
-    /// Get the number of configured unicode ranges.
+    /// Get the number of configured Unicode ranges.
     pub fn len(&self) -> usize {
         self.ranges.len()
     }
 
-    /// Check if there are no configured unicode ranges.
+    /// Check if there are no configured Unicode ranges.
     pub fn is_empty(&self) -> bool {
         self.ranges.is_empty()
     }
@@ -177,17 +191,18 @@ impl FontSelectionStrategy for CanvaFontSelectionStrategy {
     #[allow(private_interfaces)]
     fn select_font_for_cluster<'a, 'b>(
         &self,
-        cluster: &mut swash::text::cluster::CharCluster,
+        cluster: &mut CharCluster,
         font_selector: &mut crate::shape::FontSelector<'a, 'b>,
         text: &str,
         char_range: Range<usize>,
+        analysis_data_sources: &AnalysisDataSources,
     ) -> FontSelectionResult {
         // Step 1: Try primary fonts only (no system fallback) - clean single method call
-        if let Some(selected_font) = font_selector.select_font(cluster) {
+        if let Some(selected_font) = font_selector.select_font(cluster, analysis_data_sources) {
             return FontSelectionResult::UseFont(selected_font);
         }
 
-        // Step 2: Primary fonts failed, try unicode ranges (custom Canva logic - unchanged)
+        // Step 2: Primary fonts failed, try Unicode ranges (custom Canva logic - unchanged)
         if self.ranges.is_empty() {
             return FontSelectionResult::NoFont;
         }
@@ -213,7 +228,7 @@ impl FontSelectionStrategy for CanvaFontSelectionStrategy {
                     segments.push(FallbackSegment::new(
                         absolute_char_position..(absolute_char_position + 1),
                         entry.font.clone(),
-                        entry.synthesis.clone()
+                        entry.synthesis.clone(),
                     ));
                     found_match = true;
                     break;

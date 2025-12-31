@@ -1,13 +1,13 @@
 // Copyright 2024 the Parley Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-use std::sync::Arc;
-use linebender_resource_handle::FontData;
-use fontique::Blob;
 use crate::{
-    FontContext, FontFamily, FontStack, Layout, LayoutContext,
-    StyleProperty, CanvaFontSelectionStrategy
+    CanvaFontSelectionStrategy, FontContext, FontFamily, FontStack, Layout, LayoutContext,
+    StyleProperty,
 };
+use fontique::Blob;
+use linebender_resource_handle::FontData;
+use std::sync::Arc;
 
 use super::utils::ColorBrush;
 
@@ -36,9 +36,18 @@ fn test_canva_font_selection_strategy() {
     font_ctx.collection.register_fonts(blob_wz.clone(), None);
 
     // Verify fonts are registered
-    assert!(font_ctx.collection.family_id("FontAG").is_some(), "FontAG not registered");
-    assert!(font_ctx.collection.family_id("FontHV").is_some(), "FontHV not registered");
-    assert!(font_ctx.collection.family_id("FontWZ").is_some(), "FontWZ not registered");
+    assert!(
+        font_ctx.collection.family_id("FontAG").is_some(),
+        "FontAG not registered"
+    );
+    assert!(
+        font_ctx.collection.family_id("FontHV").is_some(),
+        "FontHV not registered"
+    );
+    assert!(
+        font_ctx.collection.family_id("FontWZ").is_some(),
+        "FontWZ not registered"
+    );
 
     // Create Font objects for the strategy using the same blobs
     let font_ag = FontData::new(blob_ag, 0);
@@ -50,14 +59,26 @@ fn test_canva_font_selection_strategy() {
 
     // Configure unicode ranges with different synthesis to test the functionality:
     // FontHV for K-V with regular synthesis
-    canva_strategy.add_unicode_range_with_synthesis(0x4B..0x55, font_hv.clone(), fontique::Synthesis::default()); // J-S uppercase, regular
+    canva_strategy.add_unicode_range_with_synthesis(
+        0x4B..0x55,
+        font_hv.clone(),
+        fontique::Synthesis::default(),
+    ); // J-S uppercase, regular
     //canva_strategy.add_unicode_range_with_synthesis(0x6A..0x74, font_hv.clone(), fontique::Synthesis::default()); // j-s lowercase, regular
 
     // FontWZ for Y-Z with regular synthesis
-    canva_strategy.add_unicode_range_with_synthesis(0x59..0x5B, font_wz.clone(), fontique::Synthesis::default()); // W-Z uppercase, regular
+    canva_strategy.add_unicode_range_with_synthesis(
+        0x59..0x5B,
+        font_wz.clone(),
+        fontique::Synthesis::default(),
+    ); // W-Z uppercase, regular
     //canva_strategy.add_unicode_range_with_synthesis(0x77..0x7B, font_wz.clone(), fontique::Synthesis::default()); // w-z lowercase, regular
 
-    assert_eq!(canva_strategy.len(), 2, "Should have 2 unicode ranges configured");
+    assert_eq!(
+        canva_strategy.len(),
+        2,
+        "Should have 2 unicode ranges configured"
+    );
 
     // Note: In the future, you could add synthesis variants like:
     // let bold_synthesis = create_bold_synthesis();
@@ -76,7 +97,7 @@ fn test_canva_font_selection_strategy() {
     // Create layout with FontAG as primary font
     let mut builder = layout_cx.ranged_builder(&mut font_ctx, text, 1.0, true);
     builder.push_default(StyleProperty::FontStack(FontStack::Single(
-        FontFamily::Named(std::borrow::Cow::Borrowed("FontAG"))
+        FontFamily::Named(std::borrow::Cow::Borrowed("FontAG")),
     )));
     builder.push_default(StyleProperty::FontSize(16.0));
 
@@ -91,7 +112,7 @@ fn verify_font_selection(
     layout: &Layout<ColorBrush>,
     font_ag: &FontData,
     font_hv: &FontData,
-    font_wz: &FontData
+    font_wz: &FontData,
 ) {
     let test_text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     println!("\n=== Font Selection Results ===");
@@ -142,12 +163,15 @@ fn verify_font_selection(
 
     println!("\nGlyph run details:");
     for (text_range, blob_id, font_index) in &runs_info {
-        let range_chars: String = test_text.chars()
+        let range_chars: String = test_text
+            .chars()
             .skip(text_range.start)
             .take(text_range.len())
             .collect();
-        println!("  Range {:?} ('{}'): blob_id {}, index {}",
-            text_range, range_chars, blob_id, font_index);
+        println!(
+            "  Range {:?} ('{}'): blob_id {}, index {}",
+            text_range, range_chars, blob_id, font_index
+        );
     }
     println!("===============================\n");
 
@@ -176,10 +200,16 @@ fn verify_font_selection(
     }
 
     // Verify we successfully tested font selection
-    assert!(!verified_ranges.is_empty(), "No font ranges were successfully verified");
+    assert!(
+        !verified_ranges.is_empty(),
+        "No font ranges were successfully verified"
+    );
 
     // Based on discovered behavior, FontAF handles all characters
-    assert!(verified_ranges.iter().any(|s| s.contains("FontAG")), "FontAG usage not verified");
+    assert!(
+        verified_ranges.iter().any(|s| s.contains("FontAG")),
+        "FontAG usage not verified"
+    );
 }
 
 /// Test the default font selection strategy to verify original behavior is preserved.
@@ -207,9 +237,18 @@ fn test_default_font_selection_strategy() {
     font_ctx.collection.register_fonts(blob_wz.clone(), None);
 
     // Verify fonts are registered
-    assert!(font_ctx.collection.family_id("FontAG").is_some(), "FontAG not registered");
-    assert!(font_ctx.collection.family_id("FontHV").is_some(), "FontHV not registered");
-    assert!(font_ctx.collection.family_id("FontWZ").is_some(), "FontWZ not registered");
+    assert!(
+        font_ctx.collection.family_id("FontAG").is_some(),
+        "FontAG not registered"
+    );
+    assert!(
+        font_ctx.collection.family_id("FontHV").is_some(),
+        "FontHV not registered"
+    );
+    assert!(
+        font_ctx.collection.family_id("FontWZ").is_some(),
+        "FontWZ not registered"
+    );
 
     // Create Font objects for reference
     let font_ag = FontData::new(blob_ag, 0);
@@ -228,7 +267,7 @@ fn test_default_font_selection_strategy() {
     // Create layout with FontAG as primary font
     let mut builder = layout_cx.ranged_builder(&mut font_ctx, text, 1.0, true);
     builder.push_default(StyleProperty::FontStack(FontStack::Single(
-        FontFamily::Named(std::borrow::Cow::Borrowed("FontAG"))
+        FontFamily::Named(std::borrow::Cow::Borrowed("FontAG")),
     )));
     builder.push_default(StyleProperty::FontSize(16.0));
 
@@ -243,15 +282,21 @@ fn verify_default_font_selection(
     layout: &Layout<ColorBrush>,
     font_ag: &FontData,
     font_hv: &FontData,
-    font_wz: &FontData
+    font_wz: &FontData,
 ) {
     let test_text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     println!("\n=== Default Font Selection Results ===");
     println!("Test text: {}", test_text);
     println!("Available fonts:");
     println!("  FontAG: blob_id {} (primary in stack)", font_ag.data.id());
-    println!("  FontHV: blob_id {} (available in collection)", font_hv.data.id());
-    println!("  FontWZ: blob_id {} (available in collection)", font_wz.data.id());
+    println!(
+        "  FontHV: blob_id {} (available in collection)",
+        font_hv.data.id()
+    );
+    println!(
+        "  FontWZ: blob_id {} (available in collection)",
+        font_wz.data.id()
+    );
     println!("Strategy: DefaultFontSelectionStrategy (original behavior)");
     println!();
 
@@ -295,12 +340,15 @@ fn verify_default_font_selection(
 
     println!("\nGlyph run details:");
     for (text_range, blob_id, font_index) in &runs_info {
-        let range_chars: String = test_text.chars()
+        let range_chars: String = test_text
+            .chars()
             .skip(text_range.start)
             .take(text_range.len())
             .collect();
-        println!("  Range {:?} ('{}'): blob_id {}, index {}",
-            text_range, range_chars, blob_id, font_index);
+        println!(
+            "  Range {:?} ('{}'): blob_id {}, index {}",
+            text_range, range_chars, blob_id, font_index
+        );
     }
 }
 
@@ -323,7 +371,7 @@ fn test_strategy_reusability() {
     canva_strategy.add_unicode_range_with_synthesis(
         'A' as u32..('H' as u32), // Range, not RangeInclusive
         FontData::new(blob_ag.clone(), 0),
-        fontique::Synthesis::default()
+        fontique::Synthesis::default(),
     );
     font_cx.set_font_selection_strategy(canva_strategy);
 
@@ -335,7 +383,7 @@ fn test_strategy_reusability() {
 
         // Set up basic styling with FontAG as primary font
         builder.push_default(StyleProperty::FontStack(FontStack::Single(
-            FontFamily::Named(std::borrow::Cow::Borrowed("FontAG"))
+            FontFamily::Named(std::borrow::Cow::Borrowed("FontAG")),
         )));
         builder.push_default(StyleProperty::FontSize(16.0));
 
@@ -351,10 +399,16 @@ fn test_strategy_reusability() {
                     break;
                 }
             }
-            if has_runs { break; }
+            if has_runs {
+                break;
+            }
         }
 
-        assert!(has_runs, "Iteration {}: Should have at least one glyph run", i);
+        assert!(
+            has_runs,
+            "Iteration {}: Should have at least one glyph run",
+            i
+        );
         println!("Iteration {} successful - strategy is reusable", i);
     }
 }

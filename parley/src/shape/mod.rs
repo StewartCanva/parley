@@ -5,7 +5,6 @@
 //! and `icu` for text analysis.
 
 use alloc::vec::Vec;
-use core::mem;
 use core::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -35,7 +34,10 @@ use fontique::{self, Query, QueryFamily, QueryFont};
 
 /// Convert multiple character ranges to byte ranges efficiently in O(n) time
 /// where n is the length of the text, regardless of the number of ranges.
-pub(crate) fn char_ranges_to_byte_ranges(text: &str, char_ranges: &[core::ops::Range<usize>]) -> Vec<core::ops::Range<usize>> {
+pub(crate) fn char_ranges_to_byte_ranges(
+    text: &str,
+    char_ranges: &[core::ops::Range<usize>],
+) -> Vec<core::ops::Range<usize>> {
     if char_ranges.is_empty() {
         return Vec::new();
     }
@@ -59,7 +61,7 @@ pub(crate) fn char_ranges_to_byte_ranges(text: &str, char_ranges: &[core::ops::R
         valid_ranges.push(Some(original_idx));
 
         positions.push((range.start, valid_idx, false)); // false = start position
-        positions.push((range.end, valid_idx, true));    // true = end position
+        positions.push((range.end, valid_idx, true)); // true = end position
     }
 
     let num_valid_ranges = valid_idx_counter;
@@ -105,60 +107,65 @@ pub(crate) fn char_ranges_to_byte_ranges(text: &str, char_ranges: &[core::ops::R
 
     // Convert to concrete ranges, mapping back to original indices and handling invalid ranges
     let mut valid_idx = 0;
-    valid_ranges.into_iter().map(|original_idx_opt| {
-        match original_idx_opt {
-            Some(_original_idx) => {
-                let start = start_positions[valid_idx];
-                let end = end_positions[valid_idx];
-                valid_idx += 1;
+    valid_ranges
+        .into_iter()
+        .map(|original_idx_opt| {
+            match original_idx_opt {
+                Some(_original_idx) => {
+                    let start = start_positions[valid_idx];
+                    let end = end_positions[valid_idx];
+                    valid_idx += 1;
 
-                match (start, end) {
-                    (Some(start_byte), Some(end_byte)) => start_byte..end_byte,
-                    _ => {
-                        // This shouldn't happen with valid input, but provides safe fallback
-                        0..0 // Safe fallback for uninitialized range
+                    match (start, end) {
+                        (Some(start_byte), Some(end_byte)) => start_byte..end_byte,
+                        _ => {
+                            // This shouldn't happen with valid input, but provides safe fallback
+                            0..0 // Safe fallback for uninitialized range
+                        }
                     }
                 }
+                None => {
+                    // Invalid range that was skipped in release mode
+                    0..0 // Return empty range for invalid input
+                }
             }
-            None => {
-                // Invalid range that was skipped in release mode
-                0..0 // Return empty range for invalid input
-            }
-        }
-    }).collect()
+        })
+        .collect()
 }
 
-
 /// Helper to advance parser and get next font selection result
-fn advance_and_get_next_result<'a, 'b, I>(
-    //parser: &mut swash::text::cluster::Parser<I>,
+fn advance_and_get_next_result<'a, 'b>(
     char_cluster: &mut CharCluster,
     strategy: &dyn crate::font_selection::FontSelectionStrategy,
     font_selector: &mut FontSelector<'a, 'b>,
     analysis_data_sources: &AnalysisDataSources,
     text: &str,
     text_range: &core::ops::Range<usize>,
+    cluster_range: core::ops::Range<usize>,
     item_text: &str,
     item_infos_iter: &mut core::slice::Iter<'_, (CharInfo, u16)>,
     code_unit_offset_in_string: &mut usize,
     current_char_index: &mut usize,
 ) -> Option<crate::font_selection::FontSelectionResult> {
-    //if !parser.next(cluster) {
-    //    return None; // End of text
-    //}
-
+    let text_range_start = text_range.start;
     fill_cluster_in_place(
-        &item_text[text_range],
+        &item_text[cluster_range],
         item_infos_iter,
         code_unit_offset_in_string,
         char_cluster,
     );
 
+    if char_cluster.start == char_cluster.end {
+        return None;
+    }
+
     // Calculate cluster character range without advancing current_char_index yet
     let cluster_range = char_cluster.range();
-    let cluster_byte_start = cluster_range.start as usize - text_range.start;
-    let cluster_byte_end = cluster_range.end as usize - text_range.start;
-    let cluster_char_count = item_text[cluster_byte_start..cluster_byte_end].chars().count();
+    let cluster_byte_start = cluster_range.start as usize - text_range_start;
+    let cluster_byte_end = cluster_range.end as usize - text_range_start;
+    let cluster_char_count = item_text[cluster_byte_start..cluster_byte_end]
+        .chars()
+        .count();
     let cluster_char_range = *current_char_index..(*current_char_index + cluster_char_count);
 
     // IMPORTANT: Strategy receives the character range for THIS cluster BEFORE index advancement
@@ -167,7 +174,11 @@ fn advance_and_get_next_result<'a, 'b, I>(
     // - Index is advanced AFTER processing to point to the next cluster
     // - Next strategy call will receive the updated index as its starting position
     let result = strategy.select_font_for_cluster(
-        char_cluster, font_selector, text, cluster_char_range, analysis_data_sources
+        char_cluster,
+        font_selector,
+        text,
+        cluster_char_range,
+        analysis_data_sources,
     );
 
     // Now advance the character index after strategy call
@@ -437,14 +448,16 @@ fn shape_item<'a, B: Brush>(
 ) {
     let item_text = &text[text_range.clone()];
     let item_infos = &infos[char_range.start..char_range.end]; // Only process current item
+    let first_style_index = item_infos[0].1;
     let fb_script = convert::script_to_fontique(item.script, analysis_data_sources);
+    let hb_script = script_to_harfrust(fb_script);
 
     let grapheme_cluster_boundaries = analysis_data_sources
         .grapheme_segmenter()
         .segment_str(item_text);
     let mut item_infos_iter = item_infos.iter();
     let mut code_unit_offset_in_string = text_range.start;
-    let char_cluster = &mut scx.char_cluster;
+    //let char_cluster = &mut scx.char_cluster;
 
     // Build an iterator of boundaries and consume the first segment to seed the loop
     let mut boundaries_iter = grapheme_cluster_boundaries.skip(1);
@@ -458,32 +471,42 @@ fn shape_item<'a, B: Brush>(
         &item_text[last_boundary..current_boundary],
         &mut item_infos_iter,
         &mut code_unit_offset_in_string,
-        char_cluster,
+        &mut scx.char_cluster,
     );
 
     // Track character position efficiently (fixes O(n²) regression)
     let mut current_char_index = char_range.start;
 
     // Calculate cluster character range without advancing current_char_index yet
-    let cluster_byte_start = char_cluster.range().start as usize - text_range.start;
-    let cluster_byte_end = char_cluster.range().end as usize - text_range.start;
-    let cluster_char_count = item_text[cluster_byte_start..cluster_byte_end].chars().count();
+    let cluster_byte_start = scx.char_cluster.range().start as usize - text_range.start;
+    let cluster_byte_end = scx.char_cluster.range().end as usize - text_range.start;
+    let cluster_char_count = item_text[cluster_byte_start..cluster_byte_end]
+        .chars()
+        .count();
     let cluster_char_range = current_char_index..(current_char_index + cluster_char_count);
-
-    let style_index = char_cluster.style_index as u16;
 
     // Create FontSelector ONCE per item (preserving ALL original performance optimizations)
     // Use correct item.script and item.locale (fixes functional regression)
     let fallback_mode = strategy.fallback_mode();
     let mut font_selector = FontSelector::new(
-        fq, rcx, styles, style_index, item.script, item.locale, fallback_mode
+        fq,
+        rcx,
+        styles,
+        first_style_index,
+        fb_script,
+        item.locale.clone(),
+        fallback_mode,
     );
 
     let mut current_result = {
         // IMPORTANT: Strategy receives the character range for THIS cluster BEFORE index advancement
         // This ensures consistent character positioning - same contract as advance_and_get_next_result
         strategy.select_font_for_cluster(
-            &mut char_cluster, &mut font_selector, text, cluster_char_range.clone(), analysis_data_sources
+            &mut scx.char_cluster,
+            &mut font_selector,
+            text,
+            cluster_char_range.clone(),
+            analysis_data_sources,
         )
     };
 
@@ -498,10 +521,11 @@ fn shape_item<'a, B: Brush>(
                 let current_selected_font = selected_font.clone();
 
                 // Collect all consecutive clusters that use the same font (same as original)
-                let cluster_range = char_cluster.range();
+                let cluster_range = scx.char_cluster.range();
                 let segment_start_offset = cluster_range.start as usize - text_range.start;
                 let mut segment_end_offset = cluster_range.end as usize - text_range.start;
                 let mut end_of_text = false;
+                let mut font_changed = false;
 
                 // Inner loop: extend segment while clusters use same font
                 for next_boundary in boundaries_iter.by_ref() {
@@ -509,16 +533,17 @@ fn shape_item<'a, B: Brush>(
                     last_boundary = current_boundary;
                     current_boundary = next_boundary;
                     let next_result = match advance_and_get_next_result(
-                        char_cluster,
+                        &mut scx.char_cluster,
                         strategy,
-                        font_selector,
+                        &mut font_selector,
                         analysis_data_sources,
                         text,
+                        text_range,
                         last_boundary..current_boundary,
                         item_text,
                         &mut item_infos_iter,
                         &mut code_unit_offset_in_string,
-                        current_char_index,
+                        &mut current_char_index,
                     ) {
                         Some(result) => result,
                         None => {
@@ -529,16 +554,25 @@ fn shape_item<'a, B: Brush>(
                     };
 
                     match next_result {
-                        crate::font_selection::FontSelectionResult::UseFont(ref next_selected_font) if next_selected_font == &current_selected_font => {
+                        crate::font_selection::FontSelectionResult::UseFont(
+                            ref next_selected_font,
+                        ) if next_selected_font == &current_selected_font => {
                             // Same font - extend current segment
-                            segment_end_offset = char_cluster.range().end as usize - text_range.start;
+                            segment_end_offset =
+                                scx.char_cluster.range().end as usize - text_range.start;
                         }
                         _ => {
                             // Different font or result type - end current segment
                             current_result = next_result;
+                            font_changed = true;
                             break;
                         }
                     }
+                }
+
+                // If loop completed naturally (boundaries exhausted), mark end of text
+                if !end_of_text && !font_changed {
+                    end_of_text = true;
                 }
 
                 // Convert SelectedFont -> Font for shaping
@@ -549,8 +583,18 @@ fn shape_item<'a, B: Brush>(
 
                 // Shape the entire segment at once (preserves original performance)
                 shape_segment_with_harfrust(
-                    rcx, item, scx, text, text_range, char_range,
-                    segment_start_offset..segment_end_offset, infos, &current_font, &current_selected_font.font.synthesis, layout
+                    rcx,
+                    item,
+                    hb_script,
+                    scx,
+                    text,
+                    text_range,
+                    char_range,
+                    segment_start_offset..segment_end_offset,
+                    infos,
+                    &current_font,
+                    &current_selected_font.font.synthesis,
+                    layout,
                 );
 
                 // If we reached end of text, exit main loop
@@ -559,7 +603,7 @@ fn shape_item<'a, B: Brush>(
                 }
             }
 
-            crate::font_selection::FontSelectionResult::UseFallbackSegments(segments) => {
+            crate::font_selection::FontSelectionResult::UseFallbackSegments(ref segments) => {
                 // Handle pre-segmented fallback results (new capability)
 
                 // Validation: verify critical single-cluster contract
@@ -582,8 +626,18 @@ fn shape_item<'a, B: Brush>(
                     let segment_end_offset = byte_range_in_text.end - text_range.start;
 
                     shape_segment_with_harfrust(
-                        rcx, item, scx, text, text_range, char_range,
-                        segment_start_offset..segment_end_offset, infos, &segment.font, &segment.synthesis, layout
+                        rcx,
+                        item,
+                        hb_script,
+                        scx,
+                        text,
+                        text_range,
+                        char_range,
+                        segment_start_offset..segment_end_offset,
+                        infos,
+                        &segment.font,
+                        &segment.synthesis,
+                        layout,
                     );
                 }
 
@@ -592,18 +646,20 @@ fn shape_item<'a, B: Brush>(
                 // cover the appropriate character ranges. We advance past the current cluster
                 // since it has been processed via the fallback segments.
                 if let Some(result) = advance_and_get_next_result(
-                    char_cluster,
+                    &mut scx.char_cluster,
                     strategy,
-                    font_selector,
+                    &mut font_selector,
                     analysis_data_sources,
                     text,
+                    text_range,
                     last_boundary..current_boundary,
                     item_text,
                     &mut item_infos_iter,
                     &mut code_unit_offset_in_string,
-                    current_char_index,
+                    &mut current_char_index,
                 ) {
                     current_result = result;
+                } else {
                     break; // End of text
                 }
             }
@@ -611,30 +667,29 @@ fn shape_item<'a, B: Brush>(
             crate::font_selection::FontSelectionResult::NoFont => {
                 // Skip this cluster and move to next
                 if let Some(result) = advance_and_get_next_result(
-                    char_cluster,
+                    &mut scx.char_cluster,
                     strategy,
-                    font_selector,
+                    &mut font_selector,
                     analysis_data_sources,
                     text,
+                    text_range,
                     last_boundary..current_boundary,
                     item_text,
                     &mut item_infos_iter,
                     &mut code_unit_offset_in_string,
-                    current_char_index,
+                    &mut current_char_index,
                 ) {
                     current_result = result;
                 } else {
                     break; // End of text
                 }
+            }
+        }
 
         // The main loop continues until we've processed all clusters.
         // For UseFont results, we continue with the current_result.
         // For UseFallbackSegments and NoFont, we already advanced to the next cluster above.
-        //
-        // The loop termination is handled by the "break" statements in each match branch
-        // when parser.next() returns false (end of text).
     }
-
 }
 
 /// Shape a text segment with a specific font using harfrust.
@@ -643,6 +698,7 @@ fn shape_item<'a, B: Brush>(
 fn shape_segment_with_harfrust<B: Brush>(
     rcx: &ResolveContext,
     item: &Item,
+    hb_script: harfrust::Script,
     scx: &mut ShapeContext,
     text: &str,
     text_range: &core::ops::Range<usize>,
@@ -669,10 +725,11 @@ fn shape_segment_with_harfrust<B: Brush>(
 
     // Create harfrust shaper data (cached)
     let font_data_id = font.data.id();
-    let shaper_data = scx.shape_data_cache.entry(
-        cache::ShapeDataKey::new(font_data_id, font_index),
-        || harfrust::ShaperData::new(&font_ref),
-    );
+    let shaper_data = scx
+        .shape_data_cache
+        .entry(cache::ShapeDataKey::new(font_data_id, font_index), || {
+            harfrust::ShaperData::new(&font_ref)
+        });
 
     // Create harfrust instance (cached)
     let instance = scx.shape_instance_cache.entry(
@@ -696,7 +753,6 @@ fn shape_segment_with_harfrust<B: Brush>(
     } else {
         harfrust::Direction::LeftToRight
     };
-    let hb_script = script_to_harfrust(fb_script);
     let language = item
         .locale
         .as_ref()
@@ -722,9 +778,9 @@ fn shape_segment_with_harfrust<B: Brush>(
     // Create shape plan (cached)
     let shaper_plan = scx.shape_plan_cache.entry(
         cache::ShapePlanKey::new(
-            font.font.blob.id(),
-            font.font.index,
-            &font.font.synthesis,
+            font.data.id(),
+            font.index,
+            synthesis,
             direction,
             hb_script,
             language.clone(),
@@ -793,7 +849,8 @@ fn shape_segment_with_harfrust<B: Brush>(
         item.letter_spacing,
         segment_text,
         segment_char_infos,
-        (text_range.start + segment_offset_range.start)..(text_range.start + segment_offset_range.end),
+        (text_range.start + segment_offset_range.start)
+            ..(text_range.start + segment_offset_range.end),
         harf_shaper.coords(),
     );
 
@@ -867,7 +924,8 @@ impl<'a, 'b> FontSelector<'a, 'b> {
         // For PrimaryFontsOnly: don't set fallbacks at all - they're optional
 
         // Extract font styles from the RangedStyle array
-        let font_styles: Vec<Arc<crate::resolve::FontStyleData>> = styles.iter()
+        let font_styles: Vec<Arc<crate::resolve::FontStyleData>> = styles
+            .iter()
             .map(|ranged_style| ranged_style.font_style.clone())
             .collect();
 
@@ -958,7 +1016,9 @@ impl<'a, 'b> FontSelector<'a, 'b> {
                     // Behavior depends on fallback mode:
                     // - WithSystemFallback: select discarded fonts (original behavior)
                     // - PrimaryFontsOnly: don't select discarded fonts (let strategy handle)
-                    if self.fallback_mode == FallbackMode::WithSystemFallback && selected_font.is_none() {
+                    if self.fallback_mode == FallbackMode::WithSystemFallback
+                        && selected_font.is_none()
+                    {
                         selected_font = Some(font.into());
                     }
                     fontique::QueryStatus::Continue

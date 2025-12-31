@@ -8,7 +8,7 @@ use crate::{
     BoundingBox, FontContext, FontFamily, FontStack, Layout, LayoutContext, LineHeight,
     PlainEditor, PlainEditorDriver, RangedBuilder, StyleProperty, TextStyle, TreeBuilder,
 };
-use fontique::{Blob, Collection, CollectionOptions, SourceCache};
+use fontique::{Blob, Collection, CollectionOptions};
 use peniko::kurbo::Size;
 use std::collections::HashMap;
 use std::{

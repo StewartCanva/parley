@@ -12,7 +12,8 @@ use std::sync::Arc;
 pub struct FontContext {
     pub collection: Collection,
     pub source_cache: SourceCache,
-    font_selection_strategy: Option<Arc<dyn crate::font_selection::FontSelectionStrategy + Send + Sync>>,
+    font_selection_strategy:
+        Option<Arc<dyn crate::font_selection::FontSelectionStrategy + Send + Sync>>,
 }
 
 impl Default for FontContext {
@@ -52,11 +53,15 @@ impl FontContext {
         self.font_selection_strategy = Some(Arc::new(strategy));
     }
 
-
     /// Execute a function with both a fontique query and the font selection strategy.
-    pub(crate) fn with_query_and_strategy<R>(&mut self, f: impl FnOnce(fontique::Query<'_>, &dyn crate::font_selection::FontSelectionStrategy) -> R) -> R {
+    pub(crate) fn with_query_and_strategy<R>(
+        &mut self,
+        f: impl FnOnce(fontique::Query<'_>, &dyn crate::font_selection::FontSelectionStrategy) -> R,
+    ) -> R {
         if self.font_selection_strategy.is_none() {
-            self.font_selection_strategy = Some(Arc::new(crate::font_selection::DefaultFontSelectionStrategy::new()));
+            self.font_selection_strategy = Some(Arc::new(
+                crate::font_selection::DefaultFontSelectionStrategy::new(),
+            ));
         }
         let query = self.collection.query(&mut self.source_cache);
         let strategy = self.font_selection_strategy.as_ref().unwrap();

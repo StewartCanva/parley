@@ -4,12 +4,12 @@
 pub(crate) mod cluster;
 mod provider;
 
+use crate::analysis::provider::PROVIDER;
+use crate::resolve::{FontStyleData, RangedStyle, RenderStyleData};
+use crate::{Brush, LayoutContext, WordBreak};
 use alloc::vec::Vec;
 use core::marker::PhantomData;
-
-use crate::analysis::provider::PROVIDER;
-use crate::resolve::{RangedStyle, ResolvedStyle};
-use crate::{Brush, LayoutContext, WordBreak};
+use std::sync::Arc;
 
 use icu_normalizer::properties::{
     CanonicalComposition, CanonicalCompositionBorrowed, CanonicalDecomposition,
@@ -269,7 +269,7 @@ pub(crate) fn analyze_text<B: Brush>(lcx: &mut LayoutContext<B>, mut text: &str)
                 char_indices,
                 current_char: current_char_len,
                 building_range_start: first_style.range.start,
-                previous_word_break_style: first_style.style.word_break,
+                previous_word_break_style: first_style.render_style.word_break,
                 done: false,
                 _phantom: PhantomData,
             }
@@ -300,7 +300,7 @@ pub(crate) fn analyze_text<B: Brush>(lcx: &mut LayoutContext<B>, mut text: &str)
                     self.current_char = self.char_indices.next().unwrap();
                 }
 
-                let current_word_break_style = style.style.word_break;
+                let current_word_break_style = style.render_style.word_break;
                 if self.previous_word_break_style == current_word_break_style {
                     continue;
                 }
@@ -329,7 +329,8 @@ pub(crate) fn analyze_text<B: Brush>(lcx: &mut LayoutContext<B>, mut text: &str)
         text = " ";
         if lcx.styles.is_empty() {
             lcx.styles.push(RangedStyle {
-                style: ResolvedStyle::default(),
+                font_style: Arc::from(FontStyleData::default()),
+                render_style: RenderStyleData::default(),
                 range: 0..0,
             });
         }
