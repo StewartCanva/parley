@@ -5,6 +5,7 @@
 //! and `icu` for text analysis.
 
 use alloc::sync::Arc;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::ops::RangeInclusive;
 

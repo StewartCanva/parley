@@ -5,6 +5,8 @@
 
 use crate::analysis::AnalysisDataSources;
 use crate::analysis::cluster::CharCluster;
+use alloc::vec;
+use alloc::vec::Vec;
 use core::ops::Range;
 use linebender_resource_handle::FontData;
 
