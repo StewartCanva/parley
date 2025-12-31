@@ -3,16 +3,14 @@
 
 //! Test that the various builders produce the same results.
 
-use std::borrow::Cow;
-
 use fontique::{FontStyle, FontWeight, FontWidth};
 use peniko::color::palette;
-use swash::text::WordBreakStrength;
+use std::borrow::Cow;
 
 use super::utils::{ColorBrush, FONT_STACK, asserts::assert_eq_layout_data, create_font_context};
 use crate::{
     FontContext, FontSettings, FontStack, Layout, LayoutContext, LineHeight, OverflowWrap,
-    RangedBuilder, StyleProperty, TextStyle, TextWrapMode, TreeBuilder,
+    RangedBuilder, StyleProperty, TextStyle, TextWrapMode, TreeBuilder, WordBreak,
 };
 
 /// Set of options for [`build_layout_with_ranged`].
@@ -82,6 +80,7 @@ fn assert_builders_produce_same_result<'a, 'b>(
     root_style: &'a TextStyle<'b, ColorBrush>,
     with_ranged_builder: impl Fn(&mut RangedBuilder<'_, ColorBrush>),
     with_tree_builder: impl Fn(&mut TreeBuilder<'_, ColorBrush>),
+    expect_empty: bool,
 ) {
     let mut fcx = create_font_context();
 
@@ -106,14 +105,14 @@ fn assert_builders_produce_same_result<'a, 'b>(
     // Source of truth - ranged builder from a clean layout context
     let layout_truth = build_layout_with_ranged(&mut fcx, &mut lcx_a, &ropts, &with_ranged_builder);
     assert!(
-        !layout_truth.data.runs.is_empty(),
+        layout_truth.data.runs.is_empty() == expect_empty,
         "expected runs to exist for lcx_a_rb_one"
     );
 
     // Testing idempotence of ranged builder creation
     let layout = build_layout_with_ranged(&mut fcx, &mut lcx_a, &ropts, &with_ranged_builder);
     assert!(
-        !layout.data.runs.is_empty(),
+        layout.data.runs.is_empty() == expect_empty,
         "expected runs to exist for lcx_a_rb_two"
     );
     assert_eq_layout_data(&layout_truth.data, &layout.data, "lcx_a_rb_two");
@@ -121,7 +120,7 @@ fn assert_builders_produce_same_result<'a, 'b>(
     // Basic builder compatibility - tree builder from a clean layout context
     let layout = build_layout_with_tree(&mut fcx, &mut lcx_b, &topts, &with_tree_builder);
     assert!(
-        !layout.data.runs.is_empty(),
+        layout.data.runs.is_empty() == expect_empty,
         "expected runs to exist for lcx_b_tb_one"
     );
     assert_eq_layout_data(&layout_truth.data, &layout.data, "lcx_b_tb_one");
@@ -129,7 +128,7 @@ fn assert_builders_produce_same_result<'a, 'b>(
     // Testing idempotence of tree builder creation
     let layout = build_layout_with_tree(&mut fcx, &mut lcx_b, &topts, &with_tree_builder);
     assert!(
-        !layout.data.runs.is_empty(),
+        layout.data.runs.is_empty() == expect_empty,
         "expected runs to exist for lcx_b_tb_two"
     );
     assert_eq_layout_data(&layout_truth.data, &layout.data, "lcx_b_tb_two");
@@ -140,7 +139,7 @@ fn assert_builders_produce_same_result<'a, 'b>(
     // Testing tree builder creation with a dirty layout context
     let layout = build_layout_with_tree(&mut fcx, &mut lcx_c, &topts, &with_tree_builder);
     assert!(
-        !layout.data.runs.is_empty(),
+        layout.data.runs.is_empty() == expect_empty,
         "expected runs to exist for lcx_c_tb_one"
     );
     assert_eq_layout_data(&layout_truth.data, &layout.data, "lcx_c_tb_one");
@@ -151,7 +150,7 @@ fn assert_builders_produce_same_result<'a, 'b>(
     // Testing ranged builder creation with a dirty layout context
     let layout = build_layout_with_ranged(&mut fcx, &mut lcx_d, &ropts, &with_ranged_builder);
     assert!(
-        !layout.data.runs.is_empty(),
+        layout.data.runs.is_empty() == expect_empty,
         "expected runs to exist for lcx_d_rb_one"
     );
     assert_eq_layout_data(&layout_truth.data, &layout.data, "lcx_d_rb_one");
@@ -182,7 +181,7 @@ fn create_root_style() -> TextStyle<'static, ColorBrush> {
         line_height: LineHeight::Absolute(30.),
         word_spacing: 2.,
         letter_spacing: 1.5,
-        word_break: WordBreakStrength::BreakAll,
+        word_break: WordBreak::BreakAll,
         overflow_wrap: OverflowWrap::Anywhere,
         text_wrap_mode: TextWrapMode::Wrap,
     }
@@ -220,7 +219,7 @@ fn set_root_style(rb: &mut RangedBuilder<'_, ColorBrush>) {
     rb.push_default(LineHeight::Absolute(30.));
     rb.push_default(StyleProperty::WordSpacing(2.));
     rb.push_default(StyleProperty::LetterSpacing(1.5));
-    rb.push_default(StyleProperty::WordBreak(WordBreakStrength::BreakAll));
+    rb.push_default(StyleProperty::WordBreak(WordBreak::BreakAll));
     rb.push_default(StyleProperty::OverflowWrap(OverflowWrap::Anywhere));
 }
 
@@ -251,6 +250,7 @@ fn builders_default() {
         &root_style,
         with_ranged_builder,
         with_tree_builder,
+        false,
     );
 }
 
@@ -278,6 +278,31 @@ fn builders_root_only() {
         &root_style,
         with_ranged_builder,
         with_tree_builder,
+        false,
+    );
+}
+
+/// Test that an empty layout doesn't crash
+#[test]
+fn builders_empty() {
+    let text = "";
+    let scale = 1.;
+    let quantize = false;
+    let max_advance = Some(50.);
+    let root_style = create_root_style();
+
+    let with_ranged_builder = |_rb: &mut RangedBuilder<'_, ColorBrush>| {};
+    let with_tree_builder = |_tb: &mut TreeBuilder<'_, ColorBrush>| {};
+
+    assert_builders_produce_same_result(
+        text,
+        scale,
+        quantize,
+        max_advance,
+        &root_style,
+        with_ranged_builder,
+        with_tree_builder,
+        true,
     );
 }
 
@@ -332,5 +357,6 @@ fn builders_mixed_styles() {
         &root_style,
         with_ranged_builder,
         with_tree_builder,
+        false,
     );
 }

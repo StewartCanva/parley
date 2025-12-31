@@ -161,12 +161,11 @@ fn build_into_layout_with_query<B: Brush>(
     query: fontique::Query<'_>,
     font_selection_strategy: &dyn crate::font_selection::FontSelectionStrategy,
 ) {
-    lcx.analyze_text(text);
+    crate::analysis::analyze_text(lcx, text);
 
     layout.data.clear();
     layout.data.scale = scale;
     layout.data.quantize = quantize;
-    layout.data.has_bidi = !lcx.bidi.levels().is_empty();
     layout.data.base_level = lcx.bidi.base_level();
     layout.data.text_len = text.len();
 
@@ -198,6 +197,7 @@ fn build_into_layout_with_query<B: Brush>(
         &mut lcx.scx,
         text,
         layout,
+        &lcx.analysis_data_sources,
         font_selection_strategy,
     );
 

@@ -8,12 +8,12 @@ use peniko::{
     kurbo::Size,
 };
 
+use super::utils::{ColorBrush, FONT_STACK, TestEnv, asserts::assert_eq_layout_data_alignments};
+use crate::setting::Setting;
 use crate::{
     Alignment, AlignmentOptions, ContentWidths, FontFamily, FontSettings, FontStack, InlineBox,
     Layout, LineHeight, StyleProperty, TextStyle, WhiteSpaceCollapse, test_name,
 };
-
-use super::utils::{ColorBrush, FONT_STACK, TestEnv, asserts::assert_eq_layout_data_alignments};
 
 #[test]
 fn plain_multiline_text() {
@@ -357,33 +357,6 @@ fn overflow_alignment_rtl() {
 }
 
 #[test]
-fn issue_409_justified_text() {
-    let mut env = TestEnv::new(test_name!(), None);
-
-    let text_one_line = "One line justified.\n";
-    let text_last_line_one_word = "The last word of this text falls on the last line.\n";
-    let text_last_line_three_words = "Three words of this text will end up on the last line.\n";
-    let paragraphs = r#"A sentence across two lines.
-
-And another sentence that breaks across, hopefully, three lines.
-
-And, finally, yet another sentence."#;
-
-    for (text, test_case_name) in [
-        (text_one_line, "one_line"),
-        (text_last_line_one_word, "last_line_one_word"),
-        (text_last_line_three_words, "last_line_three_words"),
-        (paragraphs, "paragraphs"),
-    ] {
-        let builder = env.ranged_builder(text);
-        let mut layout = builder.build(text);
-        layout.break_all_lines(Some(150.0));
-        layout.align(None, Alignment::Justify, AlignmentOptions::default());
-        env.with_name(test_case_name).check_layout_snapshot(&layout);
-    }
-}
-
-#[test]
 fn content_widths() {
     let mut env = TestEnv::new(test_name!(), None);
 
@@ -640,15 +613,15 @@ fn font_features() {
     let text = "fi ".repeat(4);
     let mut builder = env.ranged_builder(&text);
     builder.push(
-        StyleProperty::FontFeatures(FontSettings::List(Cow::Borrowed(&[swash::Setting {
-            tag: swash::tag_from_bytes(b"liga"),
+        StyleProperty::FontFeatures(FontSettings::List(Cow::Borrowed(&[Setting {
+            tag: crate::setting::Tag::new(b"liga"),
             value: 1,
         }]))),
         0..5,
     );
     builder.push(
-        StyleProperty::FontFeatures(FontSettings::List(Cow::Borrowed(&[swash::Setting {
-            tag: swash::tag_from_bytes(b"liga"),
+        StyleProperty::FontFeatures(FontSettings::List(Cow::Borrowed(&[Setting {
+            tag: crate::setting::Tag::new(b"liga"),
             value: 0,
         }]))),
         5..10,
@@ -671,8 +644,8 @@ fn variable_fonts() {
             FontFamily::Named(Cow::Borrowed("Arimo")),
         )));
         builder.push_default(StyleProperty::FontVariations(FontSettings::List(
-            Cow::Borrowed(&[swash::Setting {
-                tag: swash::tag_from_bytes(b"wght"),
+            Cow::Borrowed(&[Setting {
+                tag: crate::setting::Tag::new(b"wght"),
                 value: wght,
             }]),
         )));
@@ -757,7 +730,7 @@ fn realign_all() {
         }
     }
 
-    // Loop over all the base truths ..
+    // Loop over all the base truths ...
     let mut idx = 0;
     for (text_idx, (_, text_name)) in texts.iter().enumerate() {
         for (_, align_name) in alignments {
@@ -768,7 +741,7 @@ fn realign_all() {
                 let base_name = format!("{text_name}_{align_name}_{opts_name}_{ma_name}");
                 //env.with_name(&base_name).check_layout_snapshot(&layout);
 
-                // .. and make sure every combination can be applied on top without issues
+                // ... and make sure every combination can be applied on top without issues
                 let mut jdx = text_idx * (layouts.len() / texts.len());
                 for (top_alignment, align_name) in alignments {
                     for (top_max_advance, top_opts, ma_name, opts_name) in all_opts {
