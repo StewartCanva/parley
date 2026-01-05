@@ -43,19 +43,13 @@ impl<B: Brush> RangedStyle<B> {
 
     /// Apply a property to this style, creating new Arc if font properties change.
     pub(crate) fn apply(&mut self, property: ResolvedProperty<B>) {
-        // Check if this affects font properties
-        if self.affects_font_style(&property) {
-            // Create a new FontStyleData with the property applied
-            let mut temp_style = self.as_resolved_style();
-            temp_style.apply(property);
+        let affects_font = Self::affects_font_style(&property);
+        let mut temp_style = self.as_resolved_style();
+        temp_style.apply(property);
+        if affects_font {
             self.font_style = Arc::new(FontStyleData::from_resolved_style(&temp_style));
-            self.render_style = RenderStyleData::from_resolved_style(&temp_style);
-        } else {
-            // Only affects render properties - apply directly
-            let mut temp_style = self.as_resolved_style();
-            temp_style.apply(property);
-            self.render_style = RenderStyleData::from_resolved_style(&temp_style);
         }
+        self.render_style = RenderStyleData::from_resolved_style(&temp_style);
     }
 
     /// Create a temporary `ResolvedStyle` for operations that need the full style.
@@ -82,7 +76,7 @@ impl<B: Brush> RangedStyle<B> {
     }
 
     /// Check if a property affects font style (vs only render style).
-    fn affects_font_style(&self, property: &ResolvedProperty<B>) -> bool {
+    fn affects_font_style(property: &ResolvedProperty<B>) -> bool {
         matches!(
             property,
             ResolvedProperty::FontStack(_)

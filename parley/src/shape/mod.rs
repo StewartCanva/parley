@@ -56,13 +56,11 @@ pub(crate) fn char_ranges_to_byte_ranges(
             valid_ranges.push(None);
             continue;
         }
-
-        let valid_idx = valid_idx_counter;
-        valid_idx_counter += 1;
         valid_ranges.push(Some(original_idx));
 
-        positions.push((range.start, valid_idx, false)); // false = start position
-        positions.push((range.end, valid_idx, true)); // true = end position
+        positions.push((range.start, valid_idx_counter, false)); // false = start position
+        positions.push((range.end, valid_idx_counter, true));    // true = end position
+        valid_idx_counter += 1;
     }
 
     let num_valid_ranges = valid_idx_counter;
