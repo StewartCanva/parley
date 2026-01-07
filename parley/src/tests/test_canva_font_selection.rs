@@ -1,10 +1,7 @@
 // Copyright 2024 the Parley Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-use crate::{
-    CanvaFontSelectionStrategy, FontContext, FontFamily, FontStack, Layout, LayoutContext,
-    StyleProperty,
-};
+use crate::{CanvaFontSelectionStrategy, FontContext, FontFamily, FontStack, FontStyle, FontWeight, Layout, LayoutContext, PositionedLayoutItem, StyleProperty};
 use alloc::sync::Arc;
 use fontique::Blob;
 use linebender_resource_handle::FontData;
@@ -59,9 +56,13 @@ fn test_canva_font_selection_strategy() {
 
     // Configure unicode ranges with different synthesis to test the functionality:
     // FontHV for K-V with regular synthesis
+    // TODO(conor) - When this range is extended to ..0x59 (reaching X), the test doesn't fail.
+    //  Why? FontHV doesn't support the W or X glyphs. Maybe its just producing NoFont for each impacted cluster, which is fine?
     canva_strategy.add_unicode_range_with_synthesis(
-        0x4B..0x55,
+        0x4B..0x59,
         font_hv.clone(),
+        FontWeight::NORMAL,
+        FontStyle::Normal,
         fontique::Synthesis::default(),
     ); // J-S uppercase, regular
     //canva_strategy.add_unicode_range_with_synthesis(0x6A..0x74, font_hv.clone(), fontique::Synthesis::default()); // j-s lowercase, regular
@@ -70,6 +71,8 @@ fn test_canva_font_selection_strategy() {
     canva_strategy.add_unicode_range_with_synthesis(
         0x59..0x5B,
         font_wz.clone(),
+        FontWeight::NORMAL,
+        FontStyle::Normal,
         fontique::Synthesis::default(),
     ); // W-Z uppercase, regular
     //canva_strategy.add_unicode_range_with_synthesis(0x77..0x7B, font_wz.clone(), fontique::Synthesis::default()); // w-z lowercase, regular
@@ -195,7 +198,7 @@ fn verify_font_selection(
         if let Some((_expected_font, range_name)) = expected_font {
             // Temporarily disabled assertions to see debug output
             // assert_eq!(blob_id, expected_font.data.id(), "...");
-            verified_ranges.push(range_name);
+            verified_ranges.push((range_name, text_range));
         }
     }
 
@@ -205,11 +208,15 @@ fn verify_font_selection(
         "No font ranges were successfully verified"
     );
 
-    // Based on discovered behavior, FontAF handles all characters
+    // Based on discovered behavior, FontAG handles all characters
     assert!(
-        verified_ranges.iter().any(|s| s.contains("FontAG")),
+        verified_ranges.iter().any(|vr| vr.0.contains("FontAG")),
         "FontAG usage not verified"
     );
+
+    verified_ranges.iter().enumerate().for_each(|(idx, vr)| {
+        println!("verified_range {idx}: {vr:?}");
+    });
 }
 
 /// Test the default font selection strategy to verify original behavior is preserved.
@@ -371,6 +378,8 @@ fn test_strategy_reusability() {
     canva_strategy.add_unicode_range_with_synthesis(
         'A' as u32..('H' as u32), // Range, not RangeInclusive
         FontData::new(blob_ag.clone(), 0),
+        FontWeight::NORMAL,
+        FontStyle::Normal,
         fontique::Synthesis::default(),
     );
     font_cx.set_font_selection_strategy(canva_strategy);

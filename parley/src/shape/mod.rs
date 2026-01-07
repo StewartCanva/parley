@@ -133,7 +133,7 @@ pub(crate) fn char_ranges_to_byte_ranges(
 }
 
 /// Helper to advance parser and get next font selection result
-fn advance_and_get_next_result<'a, 'b>(
+fn advance_and_get_next_result<'a, 'b, B: Brush>(
     char_cluster: &mut CharCluster,
     strategy: &dyn crate::font_selection::FontSelectionStrategy,
     font_selector: &mut FontSelector<'a, 'b>,
@@ -143,6 +143,7 @@ fn advance_and_get_next_result<'a, 'b>(
     cluster_range: core::ops::Range<usize>,
     item_text: &str,
     item_infos_iter: &mut core::slice::Iter<'_, (CharInfo, u16)>,
+    styles: &'a [RangedStyle<B>],
     code_unit_offset_in_string: &mut usize,
     current_char_index: &mut usize,
 ) -> Option<crate::font_selection::FontSelectionResult> {
@@ -172,11 +173,14 @@ fn advance_and_get_next_result<'a, 'b>(
     // - Each strategy call gets the correct char_range for the cluster it's processing
     // - Index is advanced AFTER processing to point to the next cluster
     // - Next strategy call will receive the updated index as its starting position
+    let cluster_style = &styles[char_cluster.style_index() as usize].font_style;
     let result = strategy.select_font_for_cluster(
         char_cluster,
         font_selector,
         text,
         cluster_char_range,
+        cluster_style.font_weight,
+        cluster_style.font_style,
         analysis_data_sources,
     );
 
@@ -446,6 +450,7 @@ fn shape_item<'a, B: Brush>(
     strategy: &dyn crate::font_selection::FontSelectionStrategy,
 ) {
     let item_text = &text[text_range.clone()];
+    println!("item_text: {item_text}");
     let item_infos = &infos[char_range.start..char_range.end]; // Only process current item
     let first_style_index = item_infos[0].1;
     let fb_script = convert::script_to_fontique(item.script, analysis_data_sources);
@@ -498,6 +503,7 @@ fn shape_item<'a, B: Brush>(
     );
 
     let mut current_result = {
+        let first_cluster_style = &styles[scx.char_cluster.style_index() as usize].font_style;
         // IMPORTANT: Strategy receives the character range for THIS cluster BEFORE index advancement
         // This ensures consistent character positioning - same contract as advance_and_get_next_result
         strategy.select_font_for_cluster(
@@ -505,6 +511,8 @@ fn shape_item<'a, B: Brush>(
             &mut font_selector,
             text,
             cluster_char_range.clone(),
+            first_cluster_style.font_weight,
+            first_cluster_style.font_style,
             analysis_data_sources,
         )
     };
@@ -516,6 +524,8 @@ fn shape_item<'a, B: Brush>(
     loop {
         match current_result {
             crate::font_selection::FontSelectionResult::UseFont(ref selected_font) => {
+                let a = &scx.char_cluster;
+                println!("UseFont for cluster {a:?}");
                 // Clone the selected font to avoid ownership issues in the loop
                 let current_selected_font = selected_font.clone();
 
@@ -541,6 +551,7 @@ fn shape_item<'a, B: Brush>(
                         last_boundary..current_boundary,
                         item_text,
                         &mut item_infos_iter,
+                        styles,
                         &mut code_unit_offset_in_string,
                         &mut current_char_index,
                     ) {
@@ -602,48 +613,39 @@ fn shape_item<'a, B: Brush>(
                 }
             }
 
-            crate::font_selection::FontSelectionResult::UseFallbackSegments(ref segments) => {
-                // Handle pre-segmented fallback results (new capability)
+            crate::font_selection::FontSelectionResult::UseFallbackSegment(ref segment) => {
+                let a = &scx.char_cluster;
+                println!("using segment {segment:?} for cluster {a:?}");
+                // Handle fallback font for the current cluster
 
-                // Validation: verify critical single-cluster contract
-                if segments.is_empty() {
-                    // Empty segments is a strategy error - treat as NoFont to preserve text positioning
-                    // Convert to NoFont result instead of skipping text - preserves text positioning
-                    current_result = crate::font_selection::FontSelectionResult::NoFont;
-                    continue; // Re-process with NoFont result
-                }
-
-                // Note: Strategy contract assumes segments cover the current cluster exactly
-
-                // Convert all character ranges to byte ranges efficiently in O(n) time
-                let char_ranges: Vec<_> = segments.iter().map(|s| s.char_range.clone()).collect();
+                // TODO(conor) - Multiple ranges (for char and byte) aren't necessary
+                // Convert the segment's character range to byte range
+                let char_ranges = vec![segment.char_range.clone()];
                 let byte_ranges = char_ranges_to_byte_ranges(text, &char_ranges);
+                let byte_range_in_text = &byte_ranges[0];
 
-                for (segment, byte_range_in_text) in segments.iter().zip(byte_ranges.iter()) {
-                    // Convert to offset within this text item
-                    let segment_start_offset = byte_range_in_text.start - text_range.start;
-                    let segment_end_offset = byte_range_in_text.end - text_range.start;
+                // Convert to offset within this text item
+                let segment_start_offset = byte_range_in_text.start - text_range.start;
+                let segment_end_offset = byte_range_in_text.end - text_range.start;
 
-                    shape_segment_with_harfrust(
-                        rcx,
-                        item,
-                        hb_script,
-                        scx,
-                        text,
-                        text_range,
-                        char_range,
-                        segment_start_offset..segment_end_offset,
-                        infos,
-                        &segment.font,
-                        &segment.synthesis,
-                        layout,
-                    );
-                }
+                // Shape the cluster with the fallback font
+                shape_segment_with_harfrust(
+                    rcx,
+                    item,
+                    hb_script,
+                    scx,
+                    text,
+                    text_range,
+                    char_range,
+                    segment_start_offset..segment_end_offset,
+                    infos,
+                    &segment.font,
+                    &segment.synthesis,
+                    layout,
+                );
 
-                // Move to next cluster after processing fallback segments
-                // Note: The strategy is responsible for ensuring that the returned segments
-                // cover the appropriate character ranges. We advance past the current cluster
-                // since it has been processed via the fallback segments.
+                // Move to next cluster after processing fallback segment
+                // TODO(conor) extract common logic?
                 if let Some(result) = advance_and_get_next_result(
                     &mut scx.char_cluster,
                     strategy,
@@ -654,6 +656,7 @@ fn shape_item<'a, B: Brush>(
                     last_boundary..current_boundary,
                     item_text,
                     &mut item_infos_iter,
+                    styles,
                     &mut code_unit_offset_in_string,
                     &mut current_char_index,
                 ) {
@@ -665,6 +668,8 @@ fn shape_item<'a, B: Brush>(
 
             crate::font_selection::FontSelectionResult::NoFont => {
                 // Skip this cluster and move to next
+                let a = &scx.char_cluster;
+                println!("NoFont for cluster {a:?}");
                 if let Some(result) = advance_and_get_next_result(
                     &mut scx.char_cluster,
                     strategy,
@@ -675,6 +680,7 @@ fn shape_item<'a, B: Brush>(
                     last_boundary..current_boundary,
                     item_text,
                     &mut item_infos_iter,
+                    styles,
                     &mut code_unit_offset_in_string,
                     &mut current_char_index,
                 ) {
@@ -687,7 +693,7 @@ fn shape_item<'a, B: Brush>(
 
         // The main loop continues until we've processed all clusters.
         // For UseFont results, we continue with the current_result.
-        // For UseFallbackSegments and NoFont, we already advanced to the next cluster above.
+        // For UseFallbackSegment and NoFont, we already advanced to the next cluster above.
     }
 }
 
@@ -914,11 +920,16 @@ impl<'a, 'b> FontSelector<'a, 'b> {
         };
         let variations = rcx.variations(style.font_variations).unwrap_or(&[]);
         let features = rcx.features(style.font_features).unwrap_or(&[]);
+        let a = fonts.iter().copied();
+        println!("FontSelector::new - families: {a:?}");
         query.set_families(fonts.iter().copied());
 
         // Set up fallbacks based on mode (fixes performance regression)
         if let FallbackMode::WithSystemFallback = fallback_mode {
+            println!("Using System fallbacks in fontique query");
             query.set_fallbacks(fontique::FallbackKey::new(fb_script, locale.as_ref()));
+        } else {
+            println!("NOT using System fallbacks in fontique query");
         }
         // For PrimaryFontsOnly: don't set fallbacks at all - they're optional
 

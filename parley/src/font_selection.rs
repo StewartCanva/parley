@@ -15,18 +15,23 @@ use linebender_resource_handle::FontData;
 pub enum FontSelectionResult {
     /// Use the specified font for the entire cluster
     UseFont(crate::shape::SelectedFont),
-    /// Use pre-segmented fallback fonts - each segment has its own font
-    UseFallbackSegments(Vec<FallbackSegment>),
+    /// Use a fallback font for the entire cluster
+    UseFallbackSegment(FallbackSegment),
     /// No font available - skip this cluster
     NoFont,
 }
 
-/// A pre-segmented text range with its assigned font.
+/// A fallback font selection for a single cluster.
+///
+/// This represents a font to use for an entire grapheme cluster when primary fonts fail.
+/// The `char_range` must match the character range of the cluster being processed - it
+/// can span multiple Unicode codepoints (e.g., base character + combining marks).
 #[derive(Debug, Clone)]
 pub struct FallbackSegment {
-    /// Character range within the text (not byte range)
+    /// Character range within the text (not byte range).
+    /// Must match the cluster's character range exactly.
     pub char_range: Range<usize>,
-    /// Font to use for this character range
+    /// Font to use for the entire cluster
     pub font: FontData,
     /// Font synthesis settings (bold/italic emulation)
     pub synthesis: fontique::Synthesis,
@@ -34,6 +39,8 @@ pub struct FallbackSegment {
 
 impl FallbackSegment {
     /// Create a new fallback segment with explicit synthesis.
+    ///
+    /// The `char_range` should match the character range of the cluster being shaped.
     pub fn new(char_range: Range<usize>, font: FontData, synthesis: fontique::Synthesis) -> Self {
         Self {
             char_range,
@@ -64,21 +71,17 @@ pub trait FontSelectionStrategy: Send + Sync {
     /// 2. If primary fonts fail, apply custom fallback logic
     /// 3. Return appropriate `FontSelectionResult`
     ///
-    /// # CRITICAL: `UseFallbackSegments` Limitations
+    /// # Important: Cluster-Based Selection
     ///
-    /// **`UseFallbackSegments` can only be used for single-cluster scenarios.**
+    /// This method operates on **grapheme clusters**, which are indivisible units for text shaping.
+    /// A cluster may contain multiple Unicode codepoints (e.g., base character + combining marks).
     ///
-    /// The segments **must** cover exactly the character range of the current
-    /// cluster being processed. The shaping engine advances by exactly one cluster
-    /// after processing segments, regardless of how many characters the segments cover.
+    /// When returning `UseFallbackSegment`, you must select a **single font** that can handle
+    /// the **entire cluster**. You cannot split a cluster across multiple fonts, as this would
+    /// break text shaping (ligatures, contextual forms, etc.).
     ///
-    /// **Multi-cluster fallback is NOT supported via `UseFallbackSegments`** - it will
-    /// cause text positioning corruption. For complex fallback scenarios spanning
-    /// multiple clusters, implement the logic in `select_font_for_cluster` to return
-    /// `UseFont` or `NoFont` for each individual cluster as it's processed.
-    ///
-    /// This limitation exists because cluster boundaries and character boundaries
-    /// don't always align (due to grapheme clusters, ligatures, etc.).
+    /// The `char_range` parameter indicates the character range of the current cluster.
+    /// If returning `UseFallbackSegment`, the segment's `char_range` must match this range exactly.
     #[allow(private_interfaces)]
     fn select_font_for_cluster<'a, 'b>(
         &self,
@@ -86,6 +89,8 @@ pub trait FontSelectionStrategy: Send + Sync {
         font_selector: &mut crate::shape::FontSelector<'a, 'b>,
         text: &str,
         char_range: Range<usize>,
+        font_weight: crate::FontWeight,
+        font_style: crate::FontStyle,
         analysis_data_sources: &AnalysisDataSources,
     ) -> FontSelectionResult;
 }
@@ -119,6 +124,8 @@ impl FontSelectionStrategy for DefaultFontSelectionStrategy {
         font_selector: &mut crate::shape::FontSelector<'a, 'b>,
         _text: &str,
         _char_range: Range<usize>,
+        _font_weight: crate::FontWeight,
+        _font_style: crate::FontStyle,
         analysis_data_sources: &AnalysisDataSources,
     ) -> FontSelectionResult {
         // Pure delegation to original FontSelector (preserves all performance)
@@ -147,6 +154,8 @@ pub struct CanvaFontSelectionStrategy {
 struct UnicodeRangeEntry {
     range: Range<u32>,
     font: FontData,
+    weight: crate::FontWeight,
+    style: crate::FontStyle,
     synthesis: fontique::Synthesis,
 }
 
@@ -164,11 +173,15 @@ impl CanvaFontSelectionStrategy {
         &mut self,
         range: Range<u32>,
         font: FontData,
+        weight: crate::FontWeight,
+        style: crate::FontStyle,
         synthesis: fontique::Synthesis,
     ) {
         self.ranges.push(UnicodeRangeEntry {
             range,
             font,
+            weight,
+            style,
             synthesis,
         });
     }
@@ -197,53 +210,103 @@ impl FontSelectionStrategy for CanvaFontSelectionStrategy {
         font_selector: &mut crate::shape::FontSelector<'a, 'b>,
         text: &str,
         char_range: Range<usize>,
+        font_weight: crate::FontWeight,
+        font_style: crate::FontStyle,
         analysis_data_sources: &AnalysisDataSources,
     ) -> FontSelectionResult {
-        // Step 1: Try primary fonts only (no system fallback) - clean single method call
+        // TODO(conor) When Canva*Strategy is extracted, reuse identical logic in font_selector
+        // Adapted from https://github.com/Canva/canva/blob/ccf7be5a5d103725e5dfe8d404d70d3fe2bcc262/web/src/services/ripple/document/interpreters/fonts/font_loader.ts#L1011-L1020
+        fn get_distance(from_weight: u16, from_italics: bool, target_weight: u16, target_style: crate::FontStyle) -> i32 {
+            // The sum of the weights has lowest priority, it biases towards 'Normal' (< 2000).
+            let sum = distance_to_normal(from_weight) + distance_to_normal(target_weight);
+            // The next highest priority is the distance between weights (< 1000).
+            let diff = (from_weight as i32 - target_weight as i32).abs();
+            // The highest priority is whether it's italics.
+            // Add penalty when italic styles don't match
+            let italic = if from_italics != (target_style == crate::FontStyle::Italic) {
+                1 // Penalty for italic mismatch
+            } else {
+                0 // No penalty when italics match
+            };
+            // Return the prioritised results as a single distance.
+            sum + 2000 * (diff + 1000 * italic)
+        }
+
+        // Adjust a weight so that Normal is 0, and all expected values are unique.
+        fn distance_to_normal(weight: u16) -> i32 {
+            (weight as i32 - 400).abs() + if weight > 400 { 1 } else { 0 }
+        }
+
+        // Step 1: Try primary fonts only (no system fallback)
         if let Some(selected_font) = font_selector.select_font(cluster, analysis_data_sources) {
             return FontSelectionResult::UseFont(selected_font);
         }
 
-        // Step 2: Primary fonts failed, try Unicode ranges (custom Canva logic - unchanged)
+        // Step 2: Primary fonts failed, try Unicode ranges
         if self.ranges.is_empty() {
             return FontSelectionResult::NoFont;
         }
 
-        // Fix O(n×m) performance regression: convert char range to byte range once
-        // instead of calling text.chars().skip() which re-iterates from start every time
+        // Convert char range to byte range once for efficiency
         let char_ranges = vec![char_range.clone()];
         let byte_ranges = crate::shape::char_ranges_to_byte_ranges(text, &char_ranges);
         let byte_range = &byte_ranges[0];
-
-        // Work with the actual text slice for this character range
         let cluster_text = &text[byte_range.clone()];
-        let mut segments = Vec::new();
 
-        // Now we can iterate efficiently over just the cluster's characters
-        for (local_index, ch) in cluster_text.chars().enumerate() {
-            let char_code = ch as u32;
-            let mut found_match = false;
+        let target_weight = font_weight.value() as u16;
+        let target_italics = font_style == crate::FontStyle::Italic;
 
-            for entry in &self.ranges {
-                if entry.range.contains(&char_code) {
-                    let absolute_char_position = char_range.start + local_index;
-                    segments.push(FallbackSegment::new(
-                        absolute_char_position..(absolute_char_position + 1),
-                        entry.font.clone(),
-                        entry.synthesis,
-                    ));
-                    found_match = true;
+        // Find the font that can handle ALL characters AND has the closest style/weight match
+        // We need to pick a single font because clusters are indivisible shaping units
+        let mut closest_font: Option<(&UnicodeRangeEntry, i32)> = None;
+
+        for entry in &self.ranges {
+            // Check if this font can handle all characters in the cluster
+            let mut can_handle_all = true;
+
+            for ch in cluster_text.chars() {
+                let char_code = ch as u32;
+                if !entry.range.contains(&char_code) {
+                    can_handle_all = false;
                     break;
                 }
             }
 
-            if !found_match {
-                // At least one character can't be handled - return NoFont for entire cluster
-                // This preserves text positioning and prevents missing glyphs
-                return FontSelectionResult::NoFont;
+            if !can_handle_all {
+                continue;
+            }
+
+            // This font can handle all characters, compute its distance
+            let distance = get_distance(
+                target_weight,
+                target_italics,
+                entry.weight.value() as u16,
+                entry.style,
+            );
+
+            // Update closest_font if this is closer (or it's the first match)
+            match closest_font {
+                None => {
+                    closest_font = Some((entry, distance));
+                }
+                Some((_, current_distance)) => {
+                    if distance < current_distance {
+                        closest_font = Some((entry, distance));
+                    }
+                }
             }
         }
 
-        FontSelectionResult::UseFallbackSegments(segments)
+        match closest_font {
+            Some((entry, _)) => FontSelectionResult::UseFallbackSegment(FallbackSegment::new(
+                char_range,
+                entry.font.clone(),
+                entry.synthesis,
+            )),
+            None => {
+                // No single font can handle all characters in this cluster
+                FontSelectionResult::NoFont
+            }
+        }
     }
 }
