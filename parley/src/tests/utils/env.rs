@@ -8,7 +8,7 @@ use crate::{
     BoundingBox, FontContext, FontFamily, FontStack, Layout, LayoutContext, LineHeight,
     PlainEditor, PlainEditorDriver, RangedBuilder, StyleProperty, TextStyle, TreeBuilder,
 };
-use fontique::{Blob, Collection, CollectionOptions, SourceCache};
+use fontique::{Blob, Collection, CollectionOptions};
 use peniko::kurbo::Size;
 use std::collections::HashMap;
 use std::{
@@ -118,10 +118,9 @@ pub(crate) fn create_font_context() -> FontContext {
                 .unwrap_or_else(|| panic!("{font_name} font not found"));
         }
     }
-    FontContext {
-        collection,
-        source_cache: SourceCache::default(),
-    }
+    let mut font_ctx = FontContext::default();
+    font_ctx.collection = collection;
+    font_ctx
 }
 
 impl TestEnv {

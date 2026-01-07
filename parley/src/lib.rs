@@ -108,6 +108,7 @@ mod builder;
 mod context;
 mod convert;
 mod font;
+mod font_selection;
 mod inline_box;
 mod lru_cache;
 mod resolve;
@@ -128,9 +129,14 @@ pub use util::BoundingBox;
 pub use builder::{RangedBuilder, TreeBuilder};
 pub use context::LayoutContext;
 pub use font::FontContext;
+pub use font_selection::{
+    CanvaFontSelectionStrategy, DefaultFontSelectionStrategy, FallbackSegment, FontSelectionResult,
+    FontSelectionStrategy,
+};
 pub use inline_box::InlineBox;
 #[doc(inline)]
 pub use layout::Layout;
+pub use shape::{FallbackMode, SelectedFont};
 
 pub use editing::*;
 pub use layout::*;
